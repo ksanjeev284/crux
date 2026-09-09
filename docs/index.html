@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="en" data-repo="ksanjeev284/crux">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CRUX Explorer</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>✦</text></svg>">
+<style>
+  :root{
+    --bg:#0E0C0A; --panel:#161310; --panel2:#1C1814; --line:#2E2820; --line2:#3A332B;
+    --ink:#EBE6DE; --dim:#8A8276; --dim2:#5F574C;
+    --copper:#E08A45; --copper-dim:#9A4A18; --teal:#5CA3B0; --red:#D9614C; --green:#5FB07A;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink)}
+  body{font:14px/1.55 var(--mono);-webkit-font-smoothing:antialiased}
+  a{color:var(--teal);text-decoration:none}
+  a:hover{text-decoration:underline}
+  button{font:inherit;cursor:pointer}
+  :focus-visible{outline:2px solid var(--copper);outline-offset:2px}
+
+  .wrap{max-width:1180px;margin:0 auto;padding:0 18px 72px}
+
+  header{position:sticky;top:0;z-index:20;background:rgba(14,12,10,.94);
+    border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
+  .bar{max-width:1180px;margin:0 auto;padding:11px 18px;display:flex;gap:16px;align-items:center}
+  .brand{font-weight:700;letter-spacing:.14em;color:var(--copper);font-size:15px;white-space:nowrap}
+  .brand span{color:var(--dim2);font-weight:400;letter-spacing:.08em;font-size:11px;margin-left:8px}
+  #search{flex:1;min-width:120px;background:var(--panel2);border:1px solid var(--line2);
+    color:var(--ink);font:13px var(--mono);padding:7px 11px;border-radius:3px}
+  #search::placeholder{color:var(--dim2)}
+  .you{background:var(--panel2);border:1px solid var(--line2);color:var(--dim);
+    padding:6px 11px;border-radius:3px;white-space:nowrap}
+  .you b{color:var(--copper);font-weight:600}
+
+  .banner{margin:14px 0 0;padding:10px 14px;border-radius:3px;border:1px solid var(--line2);
+    background:var(--panel);display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:12.5px}
+  .banner.ok{border-color:#2A4A38;background:#0D1912;color:var(--green)}
+  .banner.warn{border-color:#4A4020;background:#191509;color:var(--copper)}
+  .banner.bad{border-color:#4A2620;background:#190D0B;color:var(--red)}
+  .banner button{margin-left:auto;background:transparent;border:1px solid currentColor;
+    color:inherit;padding:4px 12px;border-radius:3px;font-size:12px}
+
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);
+    gap:1px;background:var(--line);border:1px solid var(--line);margin-top:14px}
+  @media (max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:460px){.stats{grid-template-columns:1fr}}
+  .stat{background:var(--panel);padding:12px 14px}
+  .stat dt{color:var(--dim2);font-size:10px;letter-spacing:.13em;text-transform:uppercase;margin:0 0 6px}
+  .stat dd{margin:0;font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .stat dd small{font-size:11px;color:var(--dim);font-weight:400;display:block;margin-top:3px}
+
+  h2{font-size:12px;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);
+    margin:30px 0 12px;font-weight:600;display:flex;align-items:baseline;gap:10px}
+  h2 em{font-style:normal;color:var(--dim2);letter-spacing:0;text-transform:none;font-size:12px}
+
+  .strip{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px}
+  .blk{flex:0 0 156px;min-width:0;background:linear-gradient(160deg,var(--panel2),var(--panel));
+    border:1px solid var(--line2);border-radius:4px;padding:11px 12px;text-align:left;
+    color:inherit;position:relative;transition:border-color .12s,transform .12s}
+  .blk:hover{border-color:var(--copper-dim);transform:translateY(-2px)}
+  .blk .h{color:var(--copper);font-weight:700;font-size:15px}
+  .blk .m{color:var(--teal);font-size:11.5px;margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .blk .msg{color:var(--dim);font-size:10.5px;margin-top:4px;height:14px;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .blk .f{color:var(--dim2);font-size:10px;margin-top:7px;display:flex;justify-content:space-between}
+  .blk .puz{position:absolute;top:10px;right:10px;font-size:9.5px;color:var(--dim2);
+    border:1px solid var(--line2);border-radius:2px;padding:1px 5px}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:3px}
+  th{text-align:left;color:var(--dim2);font-weight:600;font-size:10px;letter-spacing:.12em;
+    text-transform:uppercase;padding:9px 12px;background:var(--panel2);white-space:nowrap}
+  td{padding:9px 12px;border-top:1px solid var(--line);background:var(--panel);
+    font-variant-numeric:tabular-nums;white-space:nowrap;vertical-align:middle}
+  td.memo{white-space:normal;min-width:180px}
+  tr:hover td{background:var(--panel2)}
+  .num{text-align:right}
+  .me td{background:#1A140C}
+  .me td:first-child{box-shadow:inset 3px 0 0 var(--copper)}
+
+  .pill{display:inline-block;border:1px solid var(--line2);border-radius:2px;
+    padding:1px 6px;font-size:10.5px;color:var(--dim)}
+  .pill.cb{border-color:var(--copper-dim);color:var(--copper)}
+
+  .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:14px}
+  .card h3{margin:0 0 2px;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim)}
+  .card p{margin:0 0 10px;font-size:11px;color:var(--dim2)}
+
+  .kv{width:100%;border-collapse:collapse}
+  .kv th{width:180px;background:transparent;text-transform:none;letter-spacing:0;
+    font-size:12.5px;color:var(--dim);padding:7px 0;font-weight:400;border-top:1px solid var(--line)}
+  .kv td{background:transparent;border-top:1px solid var(--line);padding:7px 0;
+    word-break:break-all;white-space:normal}
+  .back{display:inline-block;margin:16px 0 4px;color:var(--dim)}
+  .empty{color:var(--dim2);padding:16px;border:1px dashed var(--line2);border-radius:3px;font-size:12.5px}
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);
+    color:var(--dim2);font-size:11.5px}
+  @media (max-width:640px){
+    .bar{flex-wrap:wrap}
+    .you{order:3;width:100%;text-align:center}
+    .kv th{width:120px}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="bar">
+    <a class="brand" href="#/">CRUX <span>EXPLORER</span></a>
+    <input id="search" placeholder="block height, hash, txid, crux1… address, or @handle" autocomplete="off">
+    <button class="you" id="youBtn">…</button>
+  </div>
+</header>
+
+<div class="wrap" id="app"></div>
+
+<script src="app.js"></script>
+<script>
+const SAMPLE = { blocks: [{"algo":1,"bits":537133056,"height":0,"merkle_root":"f3d0c3d9eb0bc6d4613edf5f091e391f2f35394f6bf85dca0003343e11224599","miner":"ksanjeev284","nonce":168,"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","solution":"000004a46279f6b6","timestamp":1788965167,"txs":[{"cb_height":0,"coinbase":"difficulty is a target, not a pile of puzzles. the proof stays eight bytes no matter how hard the work gets.","inputs":[],"locktime":0,"outputs":[{"address":"crux1qvwj29crmyt86amr7z8r6hqsd8sq3fr7dtnre5m","value":5000000000}],"version":1}]}], registry: {"ksanjeev284":{"address":"crux1qvwj29crmyt86amr7z8r6hqsd8sq3fr7dtnre5m","pubkey":"03daf30f9755b717b60e76a567cb01a2f267f53950eaeafe1647f3de92fd5bc7f7"}} };
+
+let STATE = null, MEMPOOL = [], REGISTRY = {}, BY_ADDR = {}, SAMPLED = false,
+    FULLY_VERIFIED = false, SAMPLE_REASON = "";
+const app = document.getElementById("app");
+const you = () => localStorage.getItem("crux.handle") || "";
+
+async function grab(path) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 8000);
+  try {
+    const r = await fetch(RAW + path, { cache: "no-store", signal: ctl.signal });
+    if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
+    return await r.text();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function load() {
+  app.innerHTML = `<div class="banner"><span>Loading the chain from
+    <code>${esc(REPO)}</code>…</span></div>`;
+  try {
+    const [b, m, g] = await Promise.allSettled([
+      grab("chain/blocks.jsonl"), grab("chain/mempool.jsonl"), grab("chain/registry.json")]);
+    if (b.status !== "fulfilled") throw new Error(b.reason.message);
+    const blocks = b.value.trim().split("\n").filter(Boolean).map(JSON.parse);
+    if (!blocks.length) throw new Error("chain is empty");
+    MEMPOOL = m.status === "fulfilled"
+      ? m.value.trim().split("\n").filter(Boolean).map(JSON.parse) : [];
+    REGISTRY = g.status === "fulfilled" ? JSON.parse(g.value) : {};
+    STATE = replay(blocks);
+  } catch (e) {
+    SAMPLED = true;
+    SAMPLE_REASON = /abort/i.test(e.name + e.message) ? "no response in 8s" : (e.message || String(e));
+    REGISTRY = SAMPLE.registry || {};
+    if (!SAMPLE.blocks.length) {
+      app.innerHTML = `<div class="banner warn"><span><b>No chain yet.</b>
+        Could not fetch <code>${esc(REPO)}</code>${SAMPLE_REASON ? ` (${esc(SAMPLE_REASON)})` : ""}.
+        Mine genesis with <code>python3 make_genesis.py</code> and publish the repo.</span></div>`;
+      return;
+    }
+    STATE = replay(SAMPLE.blocks);
+  }
+  BY_ADDR = {};
+  for (const [h, v] of Object.entries(REGISTRY)) BY_ADDR[v.address] = h;
+  route();
+}
+
+const who = a => BY_ADDR[a]
+  ? `<a href="#/handle/${esc(BY_ADDR[a])}">@${esc(BY_ADDR[a])}</a>`
+  : `<a href="#/address/${esc(a)}">${esc(short(a, 10))}</a>`;
+const myAddr = () => (REGISTRY[you()] || {}).address || null;
+
+function banner() {
+  const out = [];
+  if (SAMPLED) out.push(`<div class="banner warn"><span><b>Demonstration chain.</b>
+    The live chain could not be fetched from <code>${esc(REPO)}</code>${SAMPLE_REASON
+      ? ` (${esc(SAMPLE_REASON)})` : ""} — so this is a stand-in.</span></div>`);
+
+  if (STATE.problems.length) {
+    const p = STATE.problems[0];
+    out.push(`<div class="banner bad"><span><b>Chain invalid</b> at block ${p.height}:
+      ${esc(p.message)}${STATE.problems.length > 1
+        ? ` &nbsp;<span class="pill">+${STATE.problems.length - 1} more</span>` : ""}</span></div>`);
+  } else if (FULLY_VERIFIED) {
+    out.push(`<div class="banner ok"><span><b>Verified in your browser.</b>
+      All ${STATE.blocks.length} blocks: every knapsack re-checked, every hash compared to its
+      target, every merkle root rebuilt, every signature verified, supply reconciled.</span></div>`);
+  } else {
+    const tail = Math.min(5, STATE.blocks.length);
+    out.push(`<div class="banner ok"><span><b>Chain consistent.</b> Hashes, merkle roots,
+      subsidies and supply all check out; proof of work re-checked on the last ${tail}
+      block(s).</span>
+      <button id="verifyAll">Verify every block</button></div>`);
+  }
+  return out.join("");
+}
+
+function statsRow() {
+  const t = STATE.tip, h = STATE.height;
+  const nb = nextBits(h + 1, STATE.blocks);
+  const retarget = RETARGET_INTERVAL - ((h + 1) % RETARGET_INTERVAL);
+  const halving = HALVING_INTERVAL - ((h + 1) % HALVING_INTERVAL);
+  const spans = STATE.blocks.slice(-11).map(b => b.timestamp);
+  let avg = "—";
+  if (spans.length > 1) {
+    const d = (spans[spans.length - 1] - spans[0]) / (spans.length - 1);
+    avg = d >= 3600 ? `${(d / 3600).toFixed(1)}h` : `${Math.round(d / 60)}m`;
+  }
+  const S = (t, v, s) => `<div class="stat"><dt>${t}</dt><dd>${v}${s ? `<small>${s}</small>` : ""}</dd></div>`;
+  return `<div class="stats">
+    ${S("Height", h, `${STATE.txCount} txs`)}
+    ${S("Difficulty", difficultyOf(t.bits).toLocaleString(undefined, { maximumFractionDigits: 1 }), fmtBits(t.bits))}
+    ${S("Work function", "1 knapsack", `n=${PN} + hash target`)}
+    ${S("Supply", fmtAmount(STATE.emitted).split(".")[0], `${fmtAmount(subsidy(h + 1))} next reward`)}
+    ${S("Avg interval", avg, `target ${TARGET_SPACING / 60}m`)}
+    ${S("Next retarget", `${retarget}`, nb === t.bits ? "no change yet" : `→ ${fmtBits(nb)}`)}
+    ${S("Next halving", `${halving}`, `→ ${fmtAmount(subsidy(h + HALVING_INTERVAL))}`)}
+    ${S("Mempool", MEMPOOL.length, "waiting")}
+  </div>`;
+}
+
+function blockStrip() {
+  const list = STATE.blocks.slice(-14).reverse();
+  return `<h2>Blocks <em>newest first</em></h2><div class="strip">` + list.map(b => {
+    const cb = b.txs[0];
+    return `<a class="blk" href="#/block/${b.height}">
+      <span class="puz">8 B</span>
+      <div class="h">#${b.height}</div>
+      <div class="m">@${esc(b.miner)}</div>
+      <div class="msg">${esc(cb.coinbase || "")}</div>
+      <div class="f"><span>${b.txs.length} tx</span><span>${ago(b.timestamp)}</span></div>
+    </a>`;
+  }).join("") + `</div>`;
+}
+
+function mempoolPanel() {
+  if (!MEMPOOL.length) return `<h2>Mempool</h2><div class="empty">
+    Nothing waiting. Transactions appear here after they are submitted and before a miner includes them.</div>`;
+  return `<h2>Mempool <em>${MEMPOOL.length} waiting</em></h2><div class="scroll"><table>
+    <tr><th>txid</th><th>from</th><th>to</th><th class="num">amount</th><th>note</th></tr>` +
+    MEMPOOL.map(t => {
+      const from = t.inputs?.[0] ? who(pubToAddress(t.inputs[0].pubkey)) : "—";
+      const o = t.outputs[0];
+      return `<tr><td><a href="#/tx/${txid(t)}">${esc(short(txid(t), 10))}</a></td><td>${from}</td><td>${who(o.address)}</td><td class="num">${fmtAmount(o.value)}</td><td class="memo">${esc(t.memo || "")}</td></tr>`;
+    }).join("") + `</table></div>`;
+}
+
+function youPanel() {
+  const h = you();
+  if (!h) return `<h2>You</h2><div class="empty">
+    Tell the explorer who you are and this page remembers it — your balance, your blocks and your
+    transfers get highlighted everywhere. Click the button at the top right. Nothing is sent anywhere;
+    it is stored in this browser only.</div>`;
+  const addr = myAddr();
+  const mined = STATE.blocks.filter(b => b.miner.toLowerCase() === h.toLowerCase());
+  const bal = addr ? (STATE.balances.get(addr) ?? 0n) : null;
+  const rank = [...STATE.balances.entries()].sort((a, b) => (b[1] > a[1] ? 1 : -1))
+    .findIndex(([a]) => a === addr) + 1;
+  const rows = [
+    ["Handle", `<a href="https://github.com/${esc(h)}">@${esc(h)}</a>`],
+    ["Blocks mined", `${mined.length}${mined.length ? ` — ${mined.slice(-6).reverse()
+      .map(b => `<a href="#/block/${b.height}">#${b.height}</a>`).join(" ")}` : ""}`],
+    ["Address", addr ? `<a href="#/address/${addr}">${esc(addr)}</a>` :
+      `<span style="color:var(--dim2)">not registered — run <code>python3 wallet.py identity --handle ${esc(h)}</code></span>`],
+    ["Balance", bal === null ? "—" : `${fmtAmount(bal)} CRUX${rank ? ` <span class="pill">#${rank} holder</span>` : ""}`],
+  ];
+  return `<h2>You</h2><div class="card"><table class="kv">` +
+    rows.map(([k2, v]) => `<tr><th>${k2}</th><td>${v}</td></tr>`).join("") + `</table></div>`;
+}
+
+function spark(values, { w = 460, h = 90, color = "var(--copper)", fill = true, label = v => v } = {}) {
+  if (values.length < 2) return `<p style="color:var(--dim2)">Not enough blocks yet.</p>`;
+  const min = Math.min(...values), max = Math.max(...values);
+  const flat = max === min;
+  const span = max - min || 1;
+  const pad = { l: 44, r: 8, t: 8, b: 18 };
+  const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
+  const pts = values.map((v, i) => [
+    pad.l + (values.length === 1 ? 0 : i * iw / (values.length - 1)),
+    flat ? pad.t + ih / 2 : pad.t + ih - ((v - min) / span) * ih]);
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join("");
+  const area = `${line}L${pts[pts.length - 1][0].toFixed(1)},${pad.t + ih}L${pad.l},${pad.t + ih}Z`;
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img">
+    <line x1="${pad.l}" y1="${pad.t}" x2="${w - pad.r}" y2="${pad.t}" stroke="var(--line)"/>
+    <line x1="${pad.l}" y1="${pad.t + ih}" x2="${w - pad.r}" y2="${pad.t + ih}" stroke="var(--line)"/>
+    ${fill && !flat ? `<path d="${area}" fill="${color}" opacity=".14"/>` : ""}
+    <path d="${line}" fill="none" stroke="${color}" stroke-width="1.6"/>
+    <circle cx="${pts[pts.length - 1][0].toFixed(1)}" cy="${pts[pts.length - 1][1].toFixed(1)}" r="2.8" fill="${color}"/>
+    ${flat
+      ? `<text x="4" y="${pad.t + ih / 2 + 3}" fill="var(--dim2)" font-size="9"
+           font-family="var(--mono)">${esc(label(min))}</text>
+         <text x="${pad.l + 6}" y="${pad.t + 11}" fill="var(--dim2)" font-size="9"
+           font-family="var(--mono)">unchanged so far</text>`
+      : `<text x="4" y="${pad.t + 4}" fill="var(--dim2)" font-size="9"
+           font-family="var(--mono)">${esc(label(max))}</text>
+         <text x="4" y="${pad.t + ih}" fill="var(--dim2)" font-size="9"
+           font-family="var(--mono)">${esc(label(min))}</text>`}
+  </svg>`;
+}
+
+function chartsPanel() {
+  const diff = STATE.blocks.map(b => difficultyOf(b.bits));
+  const iv = STATE.blocks.slice(1).map((b, i) =>
+    Math.max(0, (b.timestamp - STATE.blocks[i].timestamp) / 60));
+  const supply = STATE.blocks.map((_, h) => Number(fmtAmount(
+    STATE.blocks.slice(0, h + 1).reduce((a, _b, i) => a + subsidy(i), 0n)).split(".")[0]));
+  return `<h2>Chain</h2><div class="charts">
+    <div class="card"><h3>Difficulty</h3><p>by height — retargets every ${RETARGET_INTERVAL} blocks, unbounded</p>
+      ${spark(diff, { label: v => v.toLocaleString(undefined, { maximumFractionDigits: 0 }) })}</div>
+    <div class="card"><h3>Block interval</h3><p>minutes between blocks — target ${TARGET_SPACING / 60}</p>
+      ${spark(iv, { color: "var(--teal)", label: v => `${v.toFixed(0)}m` })}</div>
+    <div class="card"><h3>Supply</h3><p>CRUX emitted, halving every ${HALVING_INTERVAL} blocks</p>
+      ${spark(supply, { color: "var(--green)", label: v => v.toLocaleString() })}</div>
+  </div>`;
+}
+
+function minersPanel() {
+  const total = [...STATE.miners.values()].reduce((a, b) => a + b, 0);
+  const me = you().toLowerCase();
+  return `<h2>Miners</h2><div class="scroll"><table>
+    <tr><th>miner</th><th class="num">blocks</th><th class="num">share</th></tr>` +
+    [...STATE.miners.entries()].sort((a, b) => b[1] - a[1]).map(([h, c]) =>
+      `<tr class="${h.toLowerCase() === me ? "me" : ""}"><td><a href="#/handle/${esc(h)}">@${esc(h)}</a></td><td class="num">${c}</td><td class="num">${(100 * c / total).toFixed(1)}%</td></tr>`).join("") +
+    `</table></div>`;
+}
+
+function balancesPanel() {
+  const mine = myAddr();
+  const rows = [...STATE.balances.entries()].sort((a, b) => (b[1] > a[1] ? 1 : -1));
+  return `<h2>Balances <em>${rows.length} addresses</em></h2><div class="scroll"><table>
+    <tr><th>holder</th><th>address</th><th class="num">balance</th></tr>` +
+    rows.map(([a, v]) => `<tr class="${a === mine ? "me" : ""}">
+      <td>${BY_ADDR[a] ? `<a href="#/handle/${esc(BY_ADDR[a])}">@${esc(BY_ADDR[a])}</a>`
+        : '<span style="color:var(--dim2)">unclaimed</span>'}</td><td><a href="#/address/${esc(a)}">${esc(a)}</a></td><td class="num">${fmtAmount(v)}</td></tr>`).join("") + `</table></div>`;
+}
+
+function home() {
+  app.innerHTML = banner() + statsRow() + blockStrip() + mempoolPanel() +
+    youPanel() + chartsPanel() + minersPanel() + balancesPanel() + foot();
+  const vb = document.getElementById("verifyAll");
+  if (vb) vb.onclick = verifyAll;
+}
+
+function foot() {
+  return `<footer>Every number on this page was recomputed in your browser from
+    <a href="https://github.com/${esc(REPO)}/blob/main/chain/blocks.jsonl">chain/blocks.jsonl</a> —
+    the same rules as <a href="https://github.com/${esc(REPO)}/blob/main/SPEC.md">SPEC.md</a>,
+    ported to JavaScript. Nothing here trusts the README or the workflow.
+    ${SAMPLED ? "" : `Chainwork ${STATE.chainwork.toLocaleString()} expected hashes.`}</footer>`;
+}
+
+function blockView(h) {
+  const b = STATE.blocks[h];
+  if (!b) return notFound(`No block at height ${h}.`);
+  const cb = b.txs[0];
+  const rows = [
+    ["Hash", `<code>${blockHash(b)}</code>`],
+    ["Previous", h ? `<a href="#/block/${h - 1}"><code>${b.prev_hash}</code></a>` : "<code>genesis</code>"],
+    ["Miner", `<a href="#/handle/${esc(b.miner)}">@${esc(b.miner)}</a>`],
+    ["Timestamp", `${new Date(b.timestamp * 1000).toISOString().replace("T", " ").slice(0, 19)} UTC <span class="pill">${ago(b.timestamp)}</span>`],
+    ["Difficulty", `${difficultyOf(b.bits).toLocaleString(undefined, { maximumFractionDigits: 1 })} <span class="pill">${fmtBits(b.bits)}</span>`],
+    ["Proof of work", `1 subset-sum (n=${PN}) under a hash target`],
+    ["Nonce", `${b.nonce ?? 0}`],
+    ["Merkle root", `<code>${b.merkle_root}</code>`],
+    ["Reward", `${fmtAmount(cb.outputs.reduce((a, o) => a + BigInt(o.value), 0n))} CRUX`],
+    ["Coinbase message", cb.coinbase ? `<code>${esc(cb.coinbase)}</code>` : "—"],
+    ["Solution", `<code style="color:var(--dim)">${esc(b.solution || "")}</code>
+      <span class="pill">${SOL_BYTES} bytes, always</span>`],
+  ];
+  const txs = b.txs.map((t, i) => {
+    const id = txid(t);
+    const out = t.outputs.reduce((a, o) => a + BigInt(o.value), 0n);
+    return `<tr><td><a href="#/tx/${id}">${esc(short(id, 12))}</a></td><td>${i === 0 ? '<span class="pill cb">coinbase</span>' : who(pubToAddress(t.inputs[0].pubkey))}</td><td>${who(t.outputs[0].address)}</td><td class="num">${fmtAmount(out)}</td><td class="memo">${esc(i === 0 ? (t.coinbase || "") : (t.memo || ""))}</td></tr>`;
+  }).join("");
+
+  app.innerHTML = `<a class="back" href="#/">← back</a>
+    <h2>Block ${h} <em>${b.txs.length} transaction(s)</em></h2>
+    <div class="card"><table class="kv">${rows.map(([a, v]) =>
+      `<tr><th>${a}</th><td>${v}</td></tr>`).join("")}</table></div>
+    <h2>Transactions</h2><div class="scroll"><table>
+      <tr><th>txid</th><th>from</th><th>to</th><th class="num">amount</th><th>note</th></tr>
+      ${txs}</table></div>
+    <div style="margin-top:14px;display:flex;gap:10px">
+      ${h ? `<a class="pill" href="#/block/${h - 1}">← older</a>` : ""}
+      ${h < STATE.height ? `<a class="pill" href="#/block/${h + 1}">newer →</a>` : ""}
+    </div>` + foot();
+}
+
+function txView(id) {
+  const hit = STATE.txIndex.get(id);
+  const pending = MEMPOOL.find(t => txid(t) === id);
+  if (!hit && !pending) return notFound("No transaction with that id.");
+  const t = hit ? hit.tx : pending;
+  const cb = isCoinbase(t);
+  const out = t.outputs.reduce((a, o) => a + BigInt(o.value), 0n);
+  const rows = [
+    ["Txid", `<code>${id}</code>`],
+    ["Status", hit ? `confirmed in <a href="#/block/${hit.height}">block ${hit.height}</a>
+      <span class="pill">${STATE.height - hit.height + 1} confirmation(s)</span>`
+      : '<span class="pill">in mempool</span>'],
+    ["Type", cb ? '<span class="pill cb">coinbase</span>' : "transfer"],
+    ["Total out", `${fmtAmount(out)} CRUX`],
+  ];
+  if (!cb) rows.push(["Note", t.memo ? `<code>${esc(t.memo)}</code>` : "—"]);
+  if (cb) rows.push(["Message", t.coinbase ? `<code>${esc(t.coinbase)}</code>` : "—"]);
+
+  const ins = cb ? `<tr><td colspan="3"><span class="pill cb">newly issued — no inputs</span></td></tr>`
+    : t.inputs.map(i => `<tr><td>${who(pubToAddress(i.pubkey))}</td><td><a href="#/tx/${i.txid}">${esc(short(i.txid, 12))}</a>:${i.vout}</td><td><code style="color:var(--dim2)">${esc(short(i.sig, 10))}</code></td></tr>`).join("");
+
+  app.innerHTML = `<a class="back" href="#/">← back</a><h2>Transaction</h2>
+    <div class="card"><table class="kv">${rows.map(([a, v]) =>
+      `<tr><th>${a}</th><td>${v}</td></tr>`).join("")}</table></div>
+    <h2>Inputs</h2><div class="scroll"><table>
+      <tr><th>from</th><th>spends</th><th>signature</th></tr>${ins}</table></div>
+    <h2>Outputs</h2><div class="scroll"><table>
+      <tr><th>#</th><th>to</th><th class="num">amount</th></tr>
+      ${t.outputs.map((o, i) => `<tr><td>${i}</td><td>${who(o.address)}</td><td class="num">${fmtAmount(o.value)}</td></tr>`).join("")}</table></div>` + foot();
+}
+
+function addressView(addr) {
+  const bal = STATE.balances.get(addr) ?? 0n;
+  const handle = BY_ADDR[addr];
+  const utxos = [...STATE.utxos.entries()].filter(([, u]) => u.address === addr);
+  const history = [];
+  for (const b of STATE.blocks) {
+    for (const t of b.txs) {
+      const id = txid(t);
+      const recv = t.outputs.some(o => o.address === addr);
+      const sent = !isCoinbase(t) && t.inputs.some(i => pubToAddress(i.pubkey) === addr);
+      if (recv || sent) history.push({ b, t, id, recv, sent });
+    }
+  }
+  app.innerHTML = `<a class="back" href="#/">← back</a><h2>Address</h2>
+    <div class="card"><table class="kv">
+      <tr><th>Address</th><td><code>${esc(addr)}</code></td></tr><tr><th>Holder</th><td>${handle ? `<a href="#/handle/${esc(handle)}">@${esc(handle)}</a>`
+        : '<span style="color:var(--dim2)">unclaimed — nobody has registered this address</span>'}</td></tr><tr><th>Balance</th><td>${fmtAmount(bal)} CRUX across ${utxos.length} output(s)</td></tr>
+    </table></div>
+    <h2>History <em>${history.length} transaction(s)</em></h2>
+    ${history.length ? `<div class="scroll"><table>
+      <tr><th>block</th><th>txid</th><th>direction</th><th class="num">amount</th><th>note</th></tr>` +
+      history.reverse().map(({ b, t, id, recv, sent }) => {
+        const amt = recv ? t.outputs.filter(o => o.address === addr)
+          .reduce((a, o) => a + BigInt(o.value), 0n) : 0n;
+        return `<tr><td><a href="#/block/${b.height}">${b.height}</a></td><td><a href="#/tx/${id}">${esc(short(id, 10))}</a></td><td>${sent && recv ? "sent + change" : sent ? "sent" : isCoinbase(t) ? "mined" : "received"}</td><td class="num">${recv ? fmtAmount(amt) : "—"}</td><td class="memo">${esc(t.memo || t.coinbase || "")}</td></tr>`;
+      }).join("") + `</table></div>` : `<div class="empty">No transactions.</div>`}` + foot();
+}
+
+function handleView(h) {
+  const reg = REGISTRY[h] || Object.entries(REGISTRY)
+    .find(([n]) => n.toLowerCase() === h.toLowerCase())?.[1];
+  const mined = STATE.blocks.filter(b => b.miner.toLowerCase() === h.toLowerCase());
+  const addr = reg?.address;
+  const bal = addr ? (STATE.balances.get(addr) ?? 0n) : null;
+  const reward = mined.reduce((a, b) =>
+    a + b.txs[0].outputs.reduce((x, o) => x + BigInt(o.value), 0n), 0n);
+  app.innerHTML = `<a class="back" href="#/">← back</a><h2>@${esc(h)}</h2>
+    <div class="card"><table class="kv">
+      <tr><th>GitHub</th><td><a href="https://github.com/${esc(h)}">github.com/${esc(h)}</a></td></tr><tr><th>Blocks mined</th><td>${mined.length}</td></tr><tr><th>Total rewards</th><td>${fmtAmount(reward)} CRUX</td></tr><tr><th>Address</th><td>${addr ? `<a href="#/address/${addr}"><code>${esc(addr)}</code></a>`
+        : '<span style="color:var(--dim2)">no address registered</span>'}</td></tr><tr><th>Balance</th><td>${bal === null ? "—" : fmtAmount(bal) + " CRUX"}</td></tr>
+    </table></div>
+    <h2>Blocks mined</h2>
+    ${mined.length ? `<div class="scroll"><table>
+      <tr><th>height</th><th>hash</th><th>message</th><th class="num">txs</th><th class="num">reward</th><th>when</th></tr>` +
+      mined.slice().reverse().map(b => `<tr><td><a href="#/block/${b.height}">${b.height}</a></td><td>${esc(short(blockHash(b), 12))}</td><td class="memo">${esc(b.txs[0].coinbase || "")}</td><td class="num">${b.txs.length}</td><td class="num">${fmtAmount(b.txs[0].outputs.reduce((a, o) => a + BigInt(o.value), 0n))}</td><td>${ago(b.timestamp)}</td></tr>`).join("") + `</table></div>`
+      : `<div class="empty">@${esc(h)} has not mined a block yet.</div>`}` + foot();
+}
+
+const notFound = m => { app.innerHTML =
+  `<a class="back" href="#/">← back</a><div class="empty" style="margin-top:20px">${esc(m)}</div>` + foot(); };
+
+async function verifyAll() {
+  const btn = document.getElementById("verifyAll");
+  if (btn) { btn.disabled = true; btn.textContent = "verifying…"; }
+  await new Promise(r => setTimeout(r, 20));
+  const t0 = performance.now();
+  const res = replay(STATE.blocks, { fullPow: true });
+  STATE = { ...res, txIndex: res.txIndex };
+  FULLY_VERIFIED = !res.problems.length;
+  const ms = Math.round(performance.now() - t0);
+  route();
+  if (FULLY_VERIFIED) {
+    const b = document.querySelector(".banner.ok span");
+    if (b) b.innerHTML += ` <span class="pill">${ms} ms</span>`;
+  }
+}
+
+function route() {
+  if (!STATE) return;
+  const p = (location.hash || "#/").slice(2).split("/");
+  window.scrollTo(0, 0);
+  if (p[0] === "block") return blockView(parseInt(p[1], 10));
+  if (p[0] === "tx") return txView(p[1]);
+  if (p[0] === "address") return addressView(p[1]);
+  if (p[0] === "handle") return handleView(decodeURIComponent(p[1] || ""));
+  home();
+}
+
+function doSearch(q) {
+  q = q.trim().replace(/^@/, "");
+  if (!q) return;
+  if (/^\d+$/.test(q)) return location.hash = `#/block/${q}`;
+  if (/^crux1[a-z0-9]+$/i.test(q)) return location.hash = `#/address/${q.toLowerCase()}`;
+  if (/^[0-9a-f]{64}$/i.test(q)) {
+    const lower = q.toLowerCase();
+    const bi = STATE.blocks.findIndex(b => blockHash(b) === lower);
+    if (bi >= 0) return location.hash = `#/block/${bi}`;
+    return location.hash = `#/tx/${lower}`;
+  }
+  return location.hash = `#/handle/${encodeURIComponent(q)}`;
+}
+
+document.getElementById("search").addEventListener("keydown", e => {
+  if (e.key === "Enter") doSearch(e.target.value);
+});
+const youBtn = document.getElementById("youBtn");
+function paintYou() {
+  const h = you();
+  youBtn.innerHTML = h ? `you: <b>@${esc(h)}</b>` : "set your handle";
+}
+youBtn.onclick = () => {
+  const cur = you();
+  const v = prompt("Your GitHub handle — stored in this browser only, never sent anywhere.", cur);
+  if (v === null) return;
+  const clean = v.trim().replace(/^@/, "");
+  if (clean) localStorage.setItem("crux.handle", clean);
+  else localStorage.removeItem("crux.handle");
+  paintYou(); route();
+};
+try { paintYou(); } catch { youBtn.textContent = "set your handle"; }
+window.addEventListener("hashchange", route);
+setInterval(() => { if (STATE && !document.hidden) route(); }, 30000);
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+crux-wallet.json
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+inbox/*
+!inbox/README.md

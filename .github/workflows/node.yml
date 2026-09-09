@@ -1,0 +1,246 @@
+name: CRUX node
+
+# Validates one submission at a time. Submissions arrive as:
+#   - a newly opened issue labelled `crux` whose body contains a payload
+#   - a pull request that adds exactly one file under inbox/
+#
+# Never as a comment on a standing thread. Each document is capped at 24 KB
+# in submit.py, so GitHub's 64 KB issue limit and Actions payloads stay out
+# of the picture even after years of blocks.
+#
+# This workflow never mines. Mining happens on the submitter's machine;
+# all that runs here is validation, which is a handful of hashes and
+# signature checks and finishes in seconds.
+
+on:
+  issues:
+    types: [opened]
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: crux-chain
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  issue:
+    if: >-
+      github.event_name == 'issues' &&
+      contains(github.event.issue.labels.*.name, 'crux')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Size gate
+        id: size
+        env:
+          BODY: ${{ github.event.issue.body }}
+        run: |
+          python3 - <<'PY'
+          import os
+          body = os.environ.get("BODY") or ""
+          n = len(body.encode("utf-8"))
+          cap = 24576
+          print(f"issue body {n} bytes")
+          if n > cap:
+              print(f"too big: {n} > {cap}")
+              with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+                  fh.write("toobig=true\n")
+          PY
+
+      - name: Reject oversized issue
+        if: steps.size.outputs.toobig == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment "${{ github.event.issue.number }}" --body \
+            "**Rejected.** That issue body is larger than 24 KB. CRUX submissions are one compact line — open a new issue with only the \`crux-*-v1:\` line, or add a file under \`inbox/\`."
+          gh issue close "${{ github.event.issue.number }}" || true
+
+      - name: Validate submission
+        id: crux
+        if: steps.size.outputs.toobig != 'true'
+        env:
+          COMMENT_BODY: ${{ github.event.issue.body }}
+          COMMENT_AUTHOR: ${{ github.event.issue.user.login }}
+        run: python3 submit.py
+
+      - name: Verify the whole chain still replays
+        if: steps.crux.outputs.changed == 'true'
+        run: python3 verify.py
+
+      - name: Commit
+        if: steps.crux.outputs.changed == 'true'
+        run: |
+          git config user.name  "crux-node"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add chain/ README.md assets/ 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "nothing to commit"
+            exit 0
+          fi
+          git commit -m "crux: submission from @${{ github.event.issue.user.login }}"
+          for attempt in 1 2 3; do
+            if git push; then
+              exit 0
+            fi
+            echo "push rejected, rebasing (attempt $attempt)"
+            git pull --rebase --autostash || exit 1
+            python3 verify.py || exit 1
+          done
+          echo "could not push after 3 attempts"
+          exit 1
+
+      - name: Reply and close
+        if: always() && steps.size.outputs.toobig != 'true' && steps.crux.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPLY: ${{ steps.crux.outputs.reply }}
+          APPLIED: ${{ steps.crux.outputs.changed }}
+        run: |
+          printf '%s\n' "$REPLY" > /tmp/reply.md
+          if [ "$APPLIED" = "true" ]; then
+            printf '\nClosing this issue. Open a new one for the next submission — CRUX never uses a standing comment thread.\n' >> /tmp/reply.md
+          fi
+          gh issue comment "${{ github.event.issue.number }}" --body-file /tmp/reply.md
+          gh issue close "${{ github.event.issue.number }}" || true
+
+  pullrequest:
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out main, never the fork
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Is this an inbox submission?
+        id: triage
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$REPO/pulls/$PR/files" --paginate \
+            --jq '.[] | "\(.status) \(.filename)"' > /tmp/files.txt
+          echo "changed files:"; cat /tmp/files.txt
+          total=$(grep -c . /tmp/files.txt || true)
+          pending=$(grep -cE '^added inbox/' /tmp/files.txt || true)
+
+          if [ "$pending" -eq 0 ]; then
+            echo "No file added under inbox/ — ordinary pull request, leaving it alone."
+            echo "handle=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "handle=true" >> "$GITHUB_OUTPUT"
+
+          if [ "$total" -ne 1 ]; then
+            echo "reject=A submission pull request must add exactly one file under \`inbox/\` and change nothing else. This one changes $total files." >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          path=$(cut -d' ' -f2- /tmp/files.txt)
+          # Only a single file directly under inbox/. Reject traversal and nesting
+          # so a PR cannot smuggle a path like inbox/../.github/workflows/x.
+          case "$path" in
+            inbox/*/*|inbox/..|inbox/.|inbox/*..*)
+              echo "reject=Inbox path must be a single file directly under \`inbox/\`, not \`$path\`." >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+            inbox/*) ;;
+            *)
+              echo "reject=Inbox path must start with \`inbox/\`." >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+
+      - name: Read the submitted file
+        id: read
+        if: steps.triage.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
+          PATH_IN_PR: ${{ steps.triage.outputs.path }}
+        run: |
+          set -euo pipefail
+          # Fetched as inert text through the API. Nothing from the fork runs.
+          gh api "repos/$REPO/contents/$PATH_IN_PR?ref=$SHA" --jq '.content' \
+            | base64 -d > /tmp/submission.txt
+          size=$(wc -c < /tmp/submission.txt)
+          echo "file $size bytes"
+          if [ "$size" -gt 24576 ]; then
+            echo "toobig=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate and apply
+        id: crux
+        if: steps.triage.outputs.ok == 'true' && steps.read.outputs.toobig != 'true'
+        env:
+          COMMENT_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          COMMENT_BODY="$(cat /tmp/submission.txt)" python3 submit.py
+
+      - name: Verify the chain still replays
+        if: steps.crux.outputs.changed == 'true'
+        run: python3 verify.py
+
+      - name: Commit
+        if: steps.crux.outputs.changed == 'true'
+        run: |
+          git config user.name  "crux-node"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add chain/ README.md assets/ 2>/dev/null || true
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "crux: submission from @${{ github.event.pull_request.user.login }} (#${{ github.event.pull_request.number }})"
+          for attempt in 1 2 3; do
+            git push && exit 0
+            git pull --rebase --autostash || exit 1
+            python3 verify.py || exit 1
+          done
+          exit 1
+
+      - name: Reply
+        if: always() && steps.triage.outputs.handle == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REJECT: ${{ steps.triage.outputs.reject }}
+          TOOBIG: ${{ steps.read.outputs.toobig }}
+          REPLY: ${{ steps.crux.outputs.reply }}
+          APPLIED: ${{ steps.crux.outputs.changed }}
+        run: |
+          if [ -n "$REJECT" ]; then
+            printf '**Rejected.** %s\n\nLeaving this open so you can adjust it.\n' "$REJECT" > /tmp/reply.md
+          elif [ "$TOOBIG" = "true" ]; then
+            printf '**Rejected.** That inbox file is larger than 24 KB. A CRUX block is a few kilobytes at any difficulty.\n' > /tmp/reply.md
+          elif [ -n "$REPLY" ]; then
+            printf '%s\n' "$REPLY" > /tmp/reply.md
+          else
+            printf 'The node could not process this pull request.\n' > /tmp/reply.md
+          fi
+          if [ "$APPLIED" = "true" ]; then
+            printf '\nClosing rather than merging: the node applied your submission to `main` directly, which is why concurrent submissions never conflict. Your contribution is recorded in the commit.\n' >> /tmp/reply.md
+          fi
+          gh pr comment "$PR" --body-file /tmp/reply.md
+          if [ "$APPLIED" = "true" ]; then gh pr close "$PR" || true; fi

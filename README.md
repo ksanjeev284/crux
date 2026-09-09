@@ -1,0 +1,266 @@
+<h1 align="center">CRUX</h1>
+
+<p align="center">
+  <em>A Bitcoin-like chain whose canonical ledger is this README.</em><br>
+  <sub>Proof of work is one knapsack under a hash target — difficulty can rise forever, the proof stays 8 bytes</sub>
+</p>
+
+<p align="center">
+  <a href="https://ksanjeev284.github.io/crux/"><b>Block explorer</b></a> ·
+  <a href="SPEC.md"><b>Consensus spec</b></a> ·
+  <a href="SETUP.md"><b>Launch your own</b></a> ·
+  <a href="../../actions"><b>Node</b></a>
+</p>
+
+---
+
+<!-- CRUX:BEGIN -->
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="assets/ledger-dark.svg?v=0"><img src="assets/ledger-light.svg?v=0" width="100%" alt="CRUX ledger, height 0"></picture>
+
+| | |
+|---|---|
+| **height** | `0` |
+| **tip** | `00f61a0837cc316dbeb94d09c2e0cac9cea3b50d0d5dad829c8ce3817c98b7d4` |
+| **difficulty** | `64.0`  (bits `0x20040000`) |
+| **chainwork** | `63` expected hashes |
+| **supply** | `50.00000000 CRUX` in `1` unspent outputs |
+| **next reward** | `50.00000000 CRUX` |
+| **next retarget** | in `15` block(s) |
+| **next halving** | in `209999` block(s) |
+| **transactions** | `1` |
+
+### Recent blocks
+
+| # | hash | miner | message | txs | reward | mined |
+|--:|---|---|---|--:|--:|---|
+| `0` | `00f61a0837cc316dbeb9…` | [@ksanjeev284](https://github.com/ksanjeev284) | `difficulty is a target, not a pile of puzzles. the proof stays eight bytes no matter how hard the work gets.` | `1` | `50.00000000` | 2026-09-09 14:46 UTC |
+
+### Miners
+
+| miner | blocks | share |
+|---|--:|--:|
+| [@ksanjeev284](https://github.com/ksanjeev284) | `1` | `100.0%` |
+
+### Balances
+
+_Find your own name here once you have run `python3 wallet.py identity`._
+
+| holder | address | balance |
+|---|---|--:|
+| [@ksanjeev284](https://github.com/ksanjeev284) | `crux1qvwj29crmyt86amr7z8r6hqsd8sq3fr7dtnre5m` | `50.00000000 CRUX` |
+
+<sub>Rendered from `chain/blocks.jsonl` at height 0. Verify it yourself: <code>python3 verify.py</code></sub>
+
+<!-- CRUX:END -->
+
+---
+
+## What this is
+
+Everything here is real except the money. Coins move in UTXOs, spent by ECDSA
+signatures over secp256k1 — the same curve Bitcoin uses, with RFC 6979
+deterministic nonces and low-s enforcement. Difficulty retargets every 16
+blocks against how long the last window actually took, clamped to a factor of
+four. The subsidy starts at 50 CRUX and halves every 210 000 blocks, so
+lifetime issuance is 21 million CRUX. Coinbase
+outputs need 10 confirmations before they can be spent.
+
+The deliberate departure is the work function. **Mining CRUX means solving
+one subset-sum puzzle whose header also has to hash below a target.**
+
+Given 44 numbers and a target, find the subset that adds up to it exactly.
+Verifying an answer is 44 additions. Finding one is meet-in-the-middle
+at 2²² time *and* memory — sixteen times n=40. Then the block hash has
+to sit at or below the compact target, the same nBits encoding Bitcoin
+uses. If it doesn't, grind the nonce and try a fresh puzzle. The chain
+aims for ten-minute blocks, like Bitcoin; retargeting raises the target
+when they come in faster, with no ceiling.
+
+The proof is an 8-byte subset mask. It is the same size at the floor and at
+whatever difficulty retargeting climbs to. That is the point: a faster
+solver makes the *next* window harder, instead of making blocks cheaper
+and payloads larger.
+
+Nobody has built an ASIC for subset-sum. The reference solver in `miner.py`
+is deliberately plain, and beating it is the entire sport.
+
+The full rules, the measurements behind every constant, and each place this
+knowingly diverges from Bitcoin, are in [SPEC.md](SPEC.md).
+
+## Why this exists
+
+A chain that scales difficulty by repeating puzzles hits a wall. The proof
+grows with `k`. GitHub issue bodies are 64 KB. Actions environment variables
+are not a place for a megabyte of hex. A ceiling on `k` then becomes a
+ceiling on real work, so a GPU miner produces ten-second blocks forever
+and the comment thread that carries them becomes unusable.
+
+CRUX does not do that.
+
+- **One puzzle per block.** Difficulty is the hash target. Unbounded.
+- **Proof is 8 bytes, always.** A block with 32 transactions is a few
+  kilobytes. The node rejects anything over 24 KB.
+- **No standing issue thread.** Each submission is a new issue, processed
+  and closed, or a pull request that adds one file under `inbox/`. The
+  next miner opens a new one. Actions never replay a thousand-comment
+  issue.
+
+## Mine a block
+
+No dependencies. Python 3.9 or newer, standard library only.
+
+```bash
+git clone https://github.com/ksanjeev284/crux.git && cd crux
+python3 wallet.py new
+python3 miner.py --miner YOUR_GITHUB_HANDLE --message "gm"
+```
+
+It solves knapsacks until the header hashes below the current target, then
+prints a line starting with `crux-block-v1:` and writes `inbox/block-….txt`.
+
+Two ways to submit, and they do the same thing:
+
+- **Open a new issue** labelled `crux` whose body is that line. About ten
+  seconds. The node replies and closes it.
+- **Open a pull request** adding only that inbox file, if you want the
+  contribution on your profile. The node reads the file, applies the block
+  to `main`, and closes the PR — it is never merged, so your submission
+  can't conflict with anyone else's.
+
+Do **not** comment on an old issue. CRUX has no "mine here" thread.
+
+Minutes at genesis on the reference miner, then ten-minute spacing once
+retargeting has seen a window. If the chain gets busy, the hash target
+drops and you grind more — that is the point.
+
+**Your GitHub handle seeds your puzzle.** Two things follow. Nobody can
+submit your solved block as their own, because a different handle means a
+different puzzle and the work would have to be redone. And copying a
+solution out of an issue gets you nothing, because it answers a question
+only you were asked.
+
+With `gh` authenticated:
+
+```bash
+python3 miner.py --miner YOUR_GITHUB_HANDLE --repo ksanjeev284/crux --submit --message "gm"
+```
+
+opens the issue for you after each block and keeps mining.
+
+## Send coins
+
+```bash
+python3 wallet.py balance
+python3 wallet.py send --to crux1... --amount 1.5 --memo "gg"
+```
+
+That prints a `crux-tx-v1:` line and writes `inbox/tx-….txt`. Same two
+submission paths as a block. The memo rides inside the signature, so it
+cannot be altered or stripped on the way, and it shows up in the ledger
+above.
+
+It waits in the mempool until a miner includes it. Higher fees get picked
+first, and the fee goes to whoever mines the block.
+
+## Put your name on your balance
+
+```bash
+python3 wallet.py identity --handle YOUR_GITHUB_HANDLE
+```
+
+Post the `crux-id-v1:` line it prints as a new `crux` issue **from the
+account it names**. The signature proves you hold the key; posting it
+from your account proves you hold the handle. Your name then appears
+beside your balance in the table above.
+
+This is display only. It gives nobody any authority over your coins —
+those are spendable by signature and nothing else — and `verify.py`
+ignores the registry completely.
+
+## The explorer
+
+A README is one file served identically to everyone — no scripts, no
+per-visitor anything. So the personal view lives one click away, at
+**[the block explorer](docs/index.html)**.
+
+It fetches `chain/blocks.jsonl` and replays the entire chain in your
+browser: every hash, every merkle root, every difficulty retarget, every
+signature, every knapsack re-checked against its target, every block hash
+compared to nBits. The consensus rules in `docs/app.js` are a direct port
+of the Python, and the two agree bit for bit.
+
+Tell it your GitHub handle once and it remembers — your balance, the
+blocks you mined, your transfers, your rank. That is stored in your
+browser and sent nowhere. Search takes a block height, a block hash, a
+txid, a `crux1…` address or an `@handle`.
+
+Nothing on that page is served by a backend. There isn't one.
+
+## Verify everything yourself
+
+```bash
+python3 verify.py
+```
+
+Replays every block from genesis: recomputes each hash, re-derives every
+difficulty retarget, rebuilds every merkle root, checks every signature
+and every coinbase amount against the subsidy schedule, re-solves nothing
+(verification is 44 additions), and asserts that emitted supply equals
+unspent supply.
+
+It reads only `chain/blocks.jsonl`. It does not trust this README, the
+workflow, or any cached state. If I ever rewrite history, this is what
+catches me.
+
+```bash
+python3 tests/test_chain.py
+python3 tests/test_pow.py
+```
+
+Builds a chain in memory, spends real coins with real signatures, then
+tries to break it — tampered subsets, padded proofs, forged signatures,
+inflated coinbases, double spends, stolen blocks, wrong difficulty,
+deleted blocks, stale tips, hash targets that are not met — and asserts
+every one is rejected. Runs at a shrunk puzzle size so the whole suite
+takes seconds.
+
+## Layout
+
+```
+crux/crypto.py       secp256k1, RFC 6979 ECDSA, bech32
+crux/pow.py          subset-sum: instance, solver, hash-target check
+crux/consensus.py    nBits, retargeting, merkle, UTXO set, validation
+crux/chain.py        load, replay, extend
+crux/render.py       this page
+crux/wire.py         compact crux-*-v1: lines, 24 KB cap
+docs/                the block explorer — consensus ported to JavaScript
+miner.py             the reference solver — beat it
+wallet.py            keys, balances, signed transactions
+verify.py            independent full-chain verification
+submit.py            what the workflow runs
+SPEC.md              the consensus rules
+inbox/               pull-request submissions land here
+```
+
+## Limitations
+
+One writer, so no reorgs. Two miners who solve the same height race on
+submission time; the loser is handed the new tip and mines again.
+
+The reference solver is pure Python and wants about 200 MB while it runs.
+That is the memory wall meet-in-the-middle hits. Difficulty does not
+scale by growing `n`; it scales by the hash target. A better solver still
+wins — it just moves the retarget, instead of overflowing the wire.
+
+Proof of work makes a rewritten history detectable to anyone holding an
+earlier copy. It does not make one impossible. This chain lives in a
+single repository and is exactly as durable as that. [SPEC.md](SPEC.md)
+§13 and §16 say the same thing in more detail.
+
+CRUX coins are worth nothing and always will be. `crux-wallet.json` holds
+a private key in plain text — never reuse it anywhere that matters.
+
+## License
+
+MIT.
