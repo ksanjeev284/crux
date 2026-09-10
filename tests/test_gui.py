@@ -25,6 +25,7 @@ from crux import consensus as k
 from crux import crypto
 from crux import pow as rp
 from crux.consensus import format_amount
+from crux import __version__
 from crux.desktop import (
     DEFAULT_REPO,
     DesktopError,
@@ -45,6 +46,8 @@ from crux.desktop import (
     wallet_present,
     write_inbox,
 )
+from crux import desktop as deskmod
+from crux import paths as pathmod
 from crux.wire import BLOCK_PREFIX, ID_PREFIX, TX_PREFIX, find_payload
 
 PASSED = []
@@ -426,7 +429,30 @@ def run_headless():
             assert fh.read() == "crux-tx-v1:hi\n"
         ok("write_inbox stores the submission line")
 
-    # ---- gui.py --help does not open a window --------------------------
+    # ---- runtime paths -------------------------------------------------
+    assert pathmod.frozen() is False
+    assert default_settings()["source"] == "local"
+    paths = pathmod.default_runtime_paths()
+    assert paths["wallet_path"].endswith("crux-wallet.json")
+    assert os.path.basename(paths["inbox_dir"]) == "inbox"
+    assert paths["home"] == os.getcwd()
+    ok("source-tree runtime paths stay in the working directory")
+
+    orig_desk = deskmod.frozen
+    orig_path = pathmod.frozen
+    deskmod.frozen = lambda: True
+    pathmod.frozen = lambda: True
+    try:
+        assert deskmod.default_settings()["source"] == "remote"
+        home = pathmod.user_data_dir()
+        assert home != os.getcwd()
+        assert "CRUX" in home or "crux" in home
+    finally:
+        deskmod.frozen = orig_desk
+        pathmod.frozen = orig_path
+    ok("frozen executable follows the remote repo and uses a user data dir")
+
+    # ---- gui.py --help / --version do not open a window ---------------
     proc = subprocess.run(
         [sys.executable, os.path.join(ROOT, "gui.py"), "--help"],
         capture_output=True,
@@ -435,6 +461,15 @@ def run_headless():
     assert proc.returncode == 0, proc.stderr
     assert "wallet" in proc.stdout.lower()
     ok("gui.py --help exits 0 without opening a window")
+
+    proc = subprocess.run(
+        [sys.executable, os.path.join(ROOT, "gui.py"), "--version"],
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert __version__ in proc.stdout
+    ok(f"gui.py --version prints CRUX {__version__}")
 
 
 def run_widgets():

@@ -22,7 +22,9 @@ import tkinter.font as tkfont
 import webbrowser
 from tkinter import messagebox, ttk
 
+from crux import __version__
 from crux.consensus import format_amount
+from crux.paths import default_runtime_paths, frozen, user_data_dir
 from crux.desktop import (
     DEFAULT_FEE,
     DEFAULT_REPO,
@@ -965,22 +967,56 @@ def main(argv=None) -> int:
         except Exception:
             pass
     ap = argparse.ArgumentParser(description="CRUX desktop GUI")
-    ap.add_argument("--wallet", default=WALLET_FILE)
-    ap.add_argument("--settings", default=SETTINGS_FILE)
-    ap.add_argument("--inbox", default="inbox")
+    ap.add_argument("--wallet", default=None, help="path to crux-wallet.json")
+    ap.add_argument("--settings", default=None, help="path to crux-gui.json")
+    ap.add_argument("--inbox", default=None, help="directory for submission files")
     ap.add_argument("--repo", default="", help="owner/name shown in the header")
+    ap.add_argument("--version", action="version", version=f"CRUX {__version__}")
     args = ap.parse_args(argv)
 
-    root = tk.Tk()
-    App(
-        root,
-        wallet_path=args.wallet,
-        settings_path=args.settings,
-        inbox_dir=args.inbox,
-        repo=args.repo or None,
-    )
-    root.mainloop()
-    return 0
+    paths = default_runtime_paths()
+    os.makedirs(paths["inbox_dir"], exist_ok=True)
+    wallet = args.wallet or paths["wallet_path"]
+    settings = args.settings or paths["settings_path"]
+    inbox = args.inbox or paths["inbox_dir"]
+
+    try:
+        root = tk.Tk()
+        App(
+            root,
+            wallet_path=wallet,
+            settings_path=settings,
+            inbox_dir=inbox,
+            blocks_path=paths["blocks_path"],
+            registry_path=paths["registry_path"],
+            mempool_path=paths["mempool_path"],
+            repo=args.repo or None,
+        )
+        root.mainloop()
+        return 0
+    except Exception as exc:
+        log_path = ""
+        try:
+            home = user_data_dir()
+            os.makedirs(home, exist_ok=True)
+            log_path = os.path.join(home, "crux-crash.log")
+            import traceback
+
+            with open(log_path, "w", encoding="utf-8") as fh:
+                traceback.print_exc(file=fh)
+        except OSError:
+            pass
+        if frozen():
+            try:
+                detail = f"{exc}"
+                if log_path:
+                    detail += f"\n\nLogged to {log_path}"
+                messagebox.showerror("CRUX", detail)
+            except Exception:
+                pass
+        else:
+            raise
+        return 1
 
 
 if __name__ == "__main__":

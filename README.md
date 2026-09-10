@@ -7,6 +7,7 @@
 
 <p align="center">
   <a href="https://ksanjeev284.github.io/crux/"><b>Block explorer</b></a> ·
+  <a href="https://github.com/ksanjeev284/crux/releases/latest"><b>Download</b></a> ·
   <a href="#desktop-gui"><b>Desktop GUI</b></a> ·
   <a href="SPEC.md"><b>Consensus spec</b></a> ·
   <a href="SETUP.md"><b>Launch your own</b></a> ·
@@ -113,7 +114,20 @@ The CLI is the whole protocol. The GUI is the same operations with buttons,
 so someone who has never opened a terminal can still create a wallet, read
 the chain, sign a transfer, mine, and verify.
 
-No extra packages. Python 3.9 or newer, standard library only (`tkinter`).
+**[Download a build](https://github.com/ksanjeev284/crux/releases/latest)** — no Python required:
+
+| Platform | File |
+|---|---|
+| Windows x64 | `CRUX-windows-amd64.exe` |
+| Windows ARM64 | `CRUX-windows-arm64.exe` |
+| macOS Apple Silicon | `CRUX-macos-arm64.tar.gz` |
+| macOS Intel | `CRUX-macos-amd64.tar.gz` |
+| Linux x64 | `CRUX-linux-amd64.tar.gz` |
+| Linux ARM64 | `CRUX-linux-arm64.tar.gz` |
+
+The `.exe` is the app. The `.tar.gz` archives contain a `CRUX` binary; unpack and run it (`chmod +x CRUX` if the bit did not survive the download). Unsigned Windows builds may need *More info → Run anyway*; unsigned macOS builds need right-click → Open, or `xattr -d com.apple.quarantine CRUX`. Wallet and settings live in a per-user data directory, and a downloaded binary follows the published chain over the network.
+
+From source, still no extra packages. Python 3.9 or newer, standard library only (`tkinter`):
 
 ```bash
 git clone https://github.com/ksanjeev284/crux.git && cd crux
@@ -281,6 +295,7 @@ miner.py             the reference solver — beat it
 wallet.py            keys, balances, signed transactions
 gui.py               desktop GUI — same operations, buttons instead of flags
 CRUX.bat             Windows launcher for gui.py
+CRUX.spec            PyInstaller spec; GitHub Actions ships builds on every tag
 verify.py            independent full-chain verification
 submit.py            what the workflow runs
 SPEC.md              the consensus rules

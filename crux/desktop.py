@@ -33,6 +33,7 @@ from .consensus import (
     format_amount,
     validate_tx,
 )
+from .paths import frozen
 from .wire import ID_PREFIX, encode_block, encode_tx
 
 WALLET_FILE = "crux-wallet.json"
@@ -160,7 +161,9 @@ def default_settings() -> dict:
         "repo": DEFAULT_REPO,
         "message": "gm",
         "submit": False,
-        "source": "local",
+        # A downloaded binary has no git checkout of chain/, so follow the
+        # published repo until the user switches to a local copy.
+        "source": "remote" if frozen() else "local",
         "fee": DEFAULT_FEE,
     }
 

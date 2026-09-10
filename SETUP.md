@@ -112,6 +112,10 @@ On Windows, `CRUX.bat`. The window talks to the same `chain/`, `inbox/` and
 `crux-wallet.json` as the CLI. Submissions are still new `crux` issues or
 inbox pull requests.
 
+Standalone builds for Windows, macOS and Linux are attached to each
+[GitHub release](https://github.com/ksanjeev284/crux/releases). Tag `v*`
+and the `Release binaries` workflow builds them.
+
 ```bash
 python3 tests/test_gui.py
 ```

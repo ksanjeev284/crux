@@ -1,0 +1,134 @@
+name: Release binaries
+
+# Build a standalone CRUX GUI for every common OS/arch and attach the
+# files to the GitHub release for the tag that triggered the run.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to attach binaries to (leave empty to only store artifacts)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.asset }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            asset: CRUX-windows-amd64.exe
+            kind: exe
+          - os: windows-11-arm
+            asset: CRUX-windows-arm64.exe
+            kind: exe
+          - os: macos-15-intel
+            asset: CRUX-macos-amd64.tar.gz
+            kind: tgz
+          - os: macos-15
+            asset: CRUX-macos-arm64.tar.gz
+            kind: tgz
+          - os: ubuntu-24.04
+            asset: CRUX-linux-amd64.tar.gz
+            kind: tgz
+          - os: ubuntu-24.04-arm
+            asset: CRUX-linux-arm64.tar.gz
+            kind: tgz
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Tcl/Tk (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq tcl tk tcl-dev tk-dev python3-tk
+          python3 -c "import tkinter"
+
+      - name: Tcl/Tk (macOS)
+        if: runner.os == 'macOS'
+        run: python3 -c "import tkinter"
+
+      - name: Tcl/Tk (Windows)
+        if: runner.os == 'Windows'
+        run: python -c "import tkinter"
+
+      - name: Install PyInstaller
+        run: python -m pip install -r packaging/requirements.txt
+
+      - name: Build
+        run: python -m PyInstaller --noconfirm --clean CRUX.spec
+
+      - name: Package Windows
+        if: matrix.kind == 'exe'
+        shell: bash
+        run: |
+          mkdir -p out
+          cp dist/CRUX.exe "out/${{ matrix.asset }}"
+          ls -la out
+
+      - name: Package Unix
+        if: matrix.kind == 'tgz'
+        shell: bash
+        run: |
+          mkdir -p out
+          chmod +x dist/CRUX
+          tar -C dist -czf "out/${{ matrix.asset }}" CRUX
+          ls -la out
+          python -c "import os; p='dist/CRUX'; print('size', os.path.getsize(p))"
+
+      - name: Smoke --version (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          ./dist/CRUX --version
+          ./dist/CRUX --help | head -n 5
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: out/${{ matrix.asset }}
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Attach to GitHub release
+    needs: build
+    if: >-
+      always() &&
+      needs.build.result == 'success' &&
+      (startsWith(github.ref, 'refs/tags/') || github.event.inputs.tag != '')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Files
+        run: ls -la artifacts
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "${{ github.repository }}" \
+              --title "CRUX ${TAG}" \
+              --notes "Standalone desktop GUI builds for ${TAG}."
+          fi
+          gh release upload "$TAG" artifacts/* --repo "${{ github.repository }}" --clobber
+          gh release view "$TAG" --repo "${{ github.repository }}"
