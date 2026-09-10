@@ -100,6 +100,22 @@ Settings → Pages → Source: **Deploy from a branch**, branch `main`, folder
 Until the chain exists it falls back to a bundled demonstration chain,
 clearly labelled, so the page is never blank.
 
+## Desktop GUI
+
+After genesis, the same node can be driven without flags:
+
+```bash
+python3 gui.py
+```
+
+On Windows, `CRUX.bat`. The window talks to the same `chain/`, `inbox/` and
+`crux-wallet.json` as the CLI. Submissions are still new `crux` issues or
+inbox pull requests.
+
+```bash
+python3 tests/test_gui.py
+```
+
 ## Then mine block 1
 
 ```bash

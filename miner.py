@@ -214,7 +214,20 @@ def submit_issue(repo: str, block: Block, line: str) -> bool:
         return False
 
 
-def mine_one(blocks, miner, address, message, mempool, now=None):
+def mine_one(blocks, miner, address, message, mempool, now=None,
+             stop=None, on_progress=None, quiet=False):
+    """
+    Mine one block extending `blocks`.
+
+    `stop` is an optional callable; when it returns True the loop exits and
+    this returns None. `on_progress` is an optional callback receiving a dict
+    of nonce/attempts/solved/elapsed/rate. Both exist so a GUI can run this
+    on a worker thread without changing the work function.
+    """
+    def say(msg=""):
+        if not quiet:
+            print(msg)
+
     state = chainmod.replay(blocks, strict_time=False)
     height = len(blocks)
     bits = chainmod.bits_for_height(height, blocks)
@@ -242,12 +255,12 @@ def mine_one(blocks, miner, address, message, mempool, now=None):
         txs=all_txs,
     )
 
-    print(f"mining height {height}  difficulty {difficulty(bits):,.1f}  "
-          f"bits {bits:#010x}  work {target_to_work(target):,}")
-    print(f"  tip     {state.tip_hash[:20]}…" if height else "  genesis")
-    print(f"  reward  {format_amount(block_subsidy(height) + fee)} CRUX"
-          f"{f' (fees {format_amount(fee)})' if fee else ''}"
-          f"  txs {len(all_txs)}")
+    say(f"mining height {height}  difficulty {difficulty(bits):,.1f}  "
+        f"bits {bits:#010x}  work {target_to_work(target):,}")
+    say(f"  tip     {state.tip_hash[:20]}…" if height else "  genesis")
+    say(f"  reward  {format_amount(block_subsidy(height) + fee)} CRUX"
+        f"{f' (fees {format_amount(fee)})' if fee else ''}"
+        f"  txs {len(all_txs)}")
 
     started = time.time()
     nonce = 0
@@ -255,6 +268,20 @@ def mine_one(blocks, miner, address, message, mempool, now=None):
     solved = 0
     last_report = started
     while True:
+        if stop is not None and stop():
+            elapsed = max(0.001, time.time() - started)
+            if on_progress is not None:
+                on_progress({
+                    "event": "stopped",
+                    "height": height,
+                    "nonce": nonce,
+                    "attempts": attempts,
+                    "solved": solved,
+                    "elapsed": elapsed,
+                    "rate": attempts / elapsed,
+                })
+            say("  stopped")
+            return None
         block.nonce = nonce
         core = block.header_core()
         numbers, tgt = powfn.instance(core)
@@ -266,21 +293,43 @@ def mine_one(blocks, miner, address, message, mempool, now=None):
             digest = block.digest()
             if powfn.hash_meets_target(digest, target):
                 elapsed = max(0.001, time.time() - started)
-                print(
+                say(
                     f"  found  {block.block_hash()}  nonce {nonce}  "
                     f"{attempts} puzzle(s) in {elapsed:.1f}s  "
                     f"({attempts / elapsed:.2f}/s)"
                 )
+                if on_progress is not None:
+                    on_progress({
+                        "event": "found",
+                        "height": height,
+                        "nonce": nonce,
+                        "attempts": attempts,
+                        "solved": solved,
+                        "elapsed": elapsed,
+                        "rate": attempts / elapsed,
+                        "hash": block.block_hash(),
+                    })
                 return block
         nonce += 1
         now_t = time.time()
         if now_t - last_report >= 2:
             elapsed = max(0.001, now_t - started)
-            sys.stderr.write(
-                f"\r  nonce {nonce:,}  {attempts / elapsed:.2f} puzzles/s  "
-                f"{solved} solved  {elapsed:.0f}s   "
-            )
-            sys.stderr.flush()
+            if not quiet:
+                sys.stderr.write(
+                    f"\r  nonce {nonce:,}  {attempts / elapsed:.2f} puzzles/s  "
+                    f"{solved} solved  {elapsed:.0f}s   "
+                )
+                sys.stderr.flush()
+            if on_progress is not None:
+                on_progress({
+                    "event": "progress",
+                    "height": height,
+                    "nonce": nonce,
+                    "attempts": attempts,
+                    "solved": solved,
+                    "elapsed": elapsed,
+                    "rate": attempts / elapsed,
+                })
             last_report = now_t
 
 

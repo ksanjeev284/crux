@@ -7,6 +7,7 @@
 
 <p align="center">
   <a href="https://ksanjeev284.github.io/crux/"><b>Block explorer</b></a> ·
+  <a href="#desktop-gui"><b>Desktop GUI</b></a> ·
   <a href="SPEC.md"><b>Consensus spec</b></a> ·
   <a href="SETUP.md"><b>Launch your own</b></a> ·
   <a href="../../actions"><b>Node</b></a>
@@ -105,6 +106,46 @@ CRUX does not do that.
   and closed, or a pull request that adds one file under `inbox/`. The
   next miner opens a new one. Actions never replay a thousand-comment
   issue.
+
+## Desktop GUI
+
+The CLI is the whole protocol. The GUI is the same operations with buttons,
+so someone who has never opened a terminal can still create a wallet, read
+the chain, sign a transfer, mine, and verify.
+
+No extra packages. Python 3.9 or newer, standard library only (`tkinter`).
+
+```bash
+git clone https://github.com/ksanjeev284/crux.git && cd crux
+python3 gui.py
+```
+
+On Windows you can double-click `CRUX.bat`.
+
+<p align="center">
+  <img src="assets/gui.svg" width="100%" alt="CRUX desktop GUI showing the chain tab">
+</p>
+
+Four tabs, matching the CLI:
+
+| Tab | What it does |
+|---|---|
+| **Chain** | Height, difficulty, supply, recent blocks, miners, balances, mempool. Search a height, hash, `crux1…` address or `@handle`. |
+| **Wallet** | New key, address, balance, unspent outputs. Sign a transfer or an identity. Writes `inbox/tx-….txt` / `inbox/id-….txt`. |
+| **Mine** | Start / stop the reference solver. Follow the local chain or the GitHub repo. Writes `inbox/block-….txt`. |
+| **Verify** | Replays `chain/blocks.jsonl` the same way `python3 verify.py` does. Trusts nothing else. |
+
+Every submission is still a `crux-*-v1:` line. Copy it, or click **Open GitHub issue** to post it as a new `crux` issue. Do not comment on an old issue.
+
+```bash
+python3 tests/test_gui.py
+```
+
+Builds a chain in memory, spends real coins from the wallet tab, mines a
+block from the mine tab, then asserts the GUI is rejected for the same
+bad inputs the CLI is — invalid addresses, empty amounts, immature
+coinbases, stoppable mining, a tampered chain. The widgets are constructed
+and driven when a display is available.
 
 ## Mine a block
 
@@ -216,6 +257,7 @@ catches me.
 ```bash
 python3 tests/test_chain.py
 python3 tests/test_pow.py
+python3 tests/test_gui.py
 ```
 
 Builds a chain in memory, spends real coins with real signatures, then
@@ -237,6 +279,8 @@ crux/wire.py         compact crux-*-v1: lines, 24 KB cap
 docs/                the block explorer — consensus ported to JavaScript
 miner.py             the reference solver — beat it
 wallet.py            keys, balances, signed transactions
+gui.py               desktop GUI — same operations, buttons instead of flags
+CRUX.bat             Windows launcher for gui.py
 verify.py            independent full-chain verification
 submit.py            what the workflow runs
 SPEC.md              the consensus rules

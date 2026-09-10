@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1020 640" width="1020" height="640">
+  <rect width="1020" height="640" rx="10" fill="#0E0C0A"/>
+  <rect x="0" y="0" width="1020" height="36" rx="10" fill="#161310"/>
+  <rect x="0" y="26" width="1020" height="10" fill="#161310"/>
+  <circle cx="18" cy="18" r="6" fill="#D9614C"/>
+  <circle cx="38" cy="18" r="6" fill="#E08A45"/>
+  <circle cx="58" cy="18" r="6" fill="#5FB07A"/>
+  <text x="510" y="22" text-anchor="middle" fill="#8A8276" font-family="ui-monospace, Consolas, monospace" font-size="12">CRUX</text>
+
+  <text x="24" y="68" fill="#E08A45" font-family="ui-monospace, Consolas, monospace" font-size="22" font-weight="700">CRUX</text>
+  <text x="92" y="68" fill="#5F574C" font-family="ui-monospace, Consolas, monospace" font-size="12">desktop</text>
+  <rect x="700" y="50" width="210" height="26" rx="3" fill="#1C1814" stroke="#3A332B"/>
+  <text x="712" y="68" fill="#8A8276" font-family="ui-monospace, Consolas, monospace" font-size="11">ksanjeev284/crux</text>
+  <rect x="920" y="50" width="76" height="26" rx="3" fill="#1C1814" stroke="#3A332B"/>
+  <text x="958" y="68" text-anchor="middle" fill="#EBE6DE" font-family="ui-monospace, Consolas, monospace" font-size="11">Refresh</text>
+
+  <rect x="20" y="88" width="980" height="72" fill="#2E2820"/>
+  <rect x="20" y="88" width="244" height="72" fill="#161310"/>
+  <rect x="265" y="88" width="244" height="72" fill="#161310"/>
+  <rect x="510" y="88" width="244" height="72" fill="#161310"/>
+  <rect x="755" y="88" width="245" height="72" fill="#161310"/>
+  <text x="32" y="108" fill="#5F574C" font-family="ui-monospace, Consolas, monospace" font-size="10">HEIGHT</text>
+  <text x="32" y="132" fill="#EBE6DE" font-family="ui-monospace, Consolas, monospace" font-size="18" font-weight="700">0</text>
+  <text x="32" y="150" fill="#8A8276" font-family="ui-monospace, Consolas, monospace" font-size="10">1 txs · 1 utxos</text>
+  <text x="277" y="108" fill="#5F574C" font-family="ui-monospace, Consolas, monospace" font-size="10">DIFFICULTY</text>
+  <text x="277" y="132" fill="#EBE6DE" font-family="ui-monospace, Consolas, monospace" font-size="18" font-weight="700">64.0</text>
+  <text x="277" y="150" fill="#8A8276" font-family="ui-monospace, Consolas, monospace" font-size="10">bits 0x20040000</text>
+  <text x="522" y="108" fill="#5F574C" font-family="ui-monospace, Consolas, monospace" font-size="10">SUPPLY</text>
+  <text x="522" y="132" fill="#EBE6DE" font-family="ui-monospace, Consolas, monospace" font-size="18" font-weight="700">50.00000000</text>
+  <text x="522" y="150" fill="#8A8276" font-family="ui-monospace, Consolas, monospace" font-size="10">50.00000000 next reward</text>
+  <text x="767" y="108" fill="#5F574C" font-family="ui-monospace, Consolas, monospace" font-size="10">TIP</text>
+  <text x="767" y="132" fill="#EBE6DE" font-family="ui-monospace, Consolas, monospace" font-size="16" font-weight="700">00f61a0837cc316d…</text>
+  <text x="767" y="150" fill="#8A8276" font-family="ui-monospace, Consolas, monospace" font-size="10">hash</text>
+
+  <rect x="20" y="172" width="980" height="32" fill="#0E0C0A"/>
+  <rect x="20" y="172" width="88" height="32" fill="#161310"/>
+  <text x="64" y="193" text-anchor="middle" fill="#E08A45" font-family="ui-monospace, Consolas, monospace" font-size="12">Chain</text>
+  <text x="152" y="193" text-anchor="middle" fill="#8A8276" font-family="ui-monospace, Consolas, monospace" font-size="12">Wallet</text>
+  <text x="236" y="193" text-anchor="middle" fill="#8A8276" font-family="ui-monospace, Consolas, monospace" font-size="12">Mine</text>
+  <text x="324" y="193" text-anchor="middle" fill="#8A8276" font-family="ui-monospace, Consolas, monospace" font-size="12">Verify</text>
+
+  <text x="24" y="228" fill="#8A8276" font-family="ui-monospace, Consolas, monospace" font-size="11">Search</text>
+  <rect x="80" y="214" width="840" height="24" rx="2" fill="#1C1814" stroke="#3A332B"/>
+  <text x="90" y="230" fill="#5F574C" font-family="ui-monospace, Consolas, monospace" font-size="11">block height, hash, crux1… address, or @handle</text>
+  <rect x="930" y="214" width="70" height="24" rx="2" fill="#1C1814" stroke="#3A332B"/>
+  <text x="965" y="230" text-anchor="middle" fill="#EBE6DE" font-family="ui-monospace, Consolas, monospace" font-size="11">Go</text>
+
+  <text x="24" y="258" fill="#5F574C" font-family="ui-monospace, Consolas, monospace" font-size="9">BLOCKS</text>
+  <rect x="20" y="264" width="560" height="200" fill="#161310" stroke="#2E2820"/>
+  <rect x="20" y="264" width="560" height="24" fill="#1C1814"/>
+  <text x="32" y="280" fill="#5F574C" font-family="ui-monospace, Consolas, monospace" font-size="9">#</text>
+  <text x="70" y="280" fill="#5F574C" font-family="ui-monospace, Consolas, monospace" font-size="9">miner</text>
+  <text x="200" y="280" fill="#5F574C" font-family="ui-monospace, Consolas, monospace" font-size="9">message</text>
+  <text x="32" y="308" fill="#EBE6DE" font-family="ui-monospace, Consolas, monospace" font-size="11">0</text>
+  <text x="70" y="308" fill="#5CA3B0" font-family="ui-monospace, Consolas, monospace" font-size="11">@ksanjeev284</text>
+  <text x="200" y="308" fill="#8A8276" font-family="ui-monospace, Consolas, monospace" font-size="11">difficulty is a target, not a pile of puzzles…</text>
+
+  <text x="600" y="258" fill="#5F574C" font-family="ui-monospace, Consolas, monospace" font-size="9">MINERS</text>
+  <rect x="596" y="264" width="404" height="88" fill="#161310" stroke="#2E2820"/>
+  <rect x="596" y="264" width="404" height="24" fill="#1C1814"/>
+  <text x="608" y="280" fill="#5F574C" font-family="ui-monospace, Consolas, monospace" font-size="9">miner</text>
+  <text x="820" y="280" fill="#5F574C" font-family="ui-monospace, Consolas, monospace" font-size="9">blocks</text>
+  <text x="920" y="280" fill="#5F574C" font-family="ui-monospace, Consolas, monospace" font-size="9">share</text>
+  <text x="608" y="308" fill="#5CA3B0" font-family="ui-monospace, Consolas, monospace" font-size="11">@ksanjeev284</text>
+  <text x="840" y="308" fill="#EBE6DE" font-family="ui-monospace, Consolas, monospace" font-size="11">1</text>
+  <text x="920" y="308" fill="#EBE6DE" font-family="ui-monospace, Consolas, monospace" font-size="11">100.0%</text>
+
+  <text x="600" y="372" fill="#5F574C" font-family="ui-monospace, Consolas, monospace" font-size="9">BALANCES</text>
+  <rect x="596" y="378" width="404" height="86" fill="#161310" stroke="#2E2820"/>
+  <rect x="596" y="378" width="404" height="24" fill="#1C1814"/>
+  <text x="608" y="394" fill="#5F574C" font-family="ui-monospace, Consolas, monospace" font-size="9">holder</text>
+  <text x="608" y="422" fill="#5CA3B0" font-family="ui-monospace, Consolas, monospace" font-size="11">@ksanjeev284</text>
+  <text x="780" y="422" fill="#EBE6DE" font-family="ui-monospace, Consolas, monospace" font-size="11">50.00000000</text>
+
+  <rect x="20" y="476" width="980" height="88" fill="#161310" stroke="#2E2820"/>
+  <text x="32" y="498" fill="#8A8276" font-family="ui-monospace, Consolas, monospace" font-size="11">block 0  00f61a0837cc316dbeb94d09c2e0cac9cea3b50d0d5dad829c8ce3817c98b7d4</text>
+  <text x="32" y="518" fill="#8A8276" font-family="ui-monospace, Consolas, monospace" font-size="11">miner @ksanjeev284  txs 1  bits 0x20040000</text>
+  <text x="32" y="538" fill="#8A8276" font-family="ui-monospace, Consolas, monospace" font-size="11">reward   50.00000000 CRUX</text>
+  <text x="32" y="554" fill="#5F574C" font-family="ui-monospace, Consolas, monospace" font-size="11">proof    000004a46279f6b6  (8 bytes)</text>
+
+  <rect x="20" y="576" width="980" height="40" fill="#161310" stroke="#2E2820"/>
+  <text x="32" y="601" fill="#8A8276" font-family="ui-monospace, Consolas, monospace" font-size="11">local chain at height 0</text>
+</svg>

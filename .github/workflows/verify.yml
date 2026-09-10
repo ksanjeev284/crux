@@ -25,5 +25,10 @@ jobs:
         run: python3 tests/test_difficulty.py
       - name: Adversarial tests
         run: python3 tests/test_abuse.py
+      - name: GUI tests
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb
+          xvfb-run -a python3 tests/test_gui.py
       - name: Replay the chain from genesis
         run: python3 verify.py

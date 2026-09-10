@@ -1,4 +1,5 @@
 crux-wallet.json
+crux-gui.json
 __pycache__/
 *.pyc
 .venv/
