@@ -45,12 +45,15 @@ from crux.desktop import (
     mine_block,
     save_settings,
     short_hash,
+    parse_amount,
+    send_max_amount,
     snapshot,
     submit_block,
     validate_miner_fields,
     verify_chain,
     wallet_present,
 )
+from crux import crypto as cryptomod
 from crux import chain as chainmod
 
 BG = "#0E0C0A"
@@ -126,6 +129,7 @@ class App:
         self._pumping = True
         self._ready = False
         self._save_after = None
+        self._refresh_after = None
         self.dialogs = messagebox
 
         self._style()
@@ -139,7 +143,9 @@ class App:
         except KeyError:
             pass
         self._watch_fields()
+        self._bind_keys()
         self._ready = True
+        self._schedule_auto_refresh()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self._pump_after = self.root.after(200, self._pump)
 
@@ -224,6 +230,8 @@ class App:
         self.submit_var = tk.BooleanVar(value=bool(self.settings.get("submit")))
         self.keep_mining_var = tk.BooleanVar(value=bool(self.settings.get("keep_mining")))
         self.cuda_var = tk.BooleanVar(value=bool(self.settings.get("cuda", True)))
+        self.auto_refresh_var = tk.BooleanVar(value=bool(self.settings.get("auto_refresh", True)))
+        self.meta_var = tk.StringVar(value="")
         self.to_var = tk.StringVar(value=self.settings.get("to", ""))
         self.amount_var = tk.StringVar(value=self.settings.get("amount", ""))
         self.fee_var = tk.StringVar(value=self.settings.get("fee", DEFAULT_FEE))
@@ -244,7 +252,9 @@ class App:
         ttk.Label(header, text=f"desktop  v{__version__}", style="Dim.TLabel").pack(
             side="left", padx=(8, 0))
 
-        ttk.Button(header, text="Data folder", command=self.open_data_dir).pack(side="right")
+        ttk.Button(header, text="About", command=self.show_about).pack(side="right")
+        ttk.Button(header, text="Data folder", command=self.open_data_dir).pack(
+            side="right", padx=(0, 8))
         ttk.Button(header, text="Explorer", command=self.open_explorer).pack(
             side="right", padx=(0, 8))
         ttk.Button(header, text="Refresh", command=self.refresh).pack(side="right", padx=(0, 8))
@@ -261,8 +271,11 @@ class App:
             side="left", fill="both", expand=True, padx=(0, 1))
         self._stat(stats, "SUPPLY", self.supply_var, self.supply_sub).pack(
             side="left", fill="both", expand=True, padx=(0, 1))
-        self._stat(stats, "TIP", self.tip_var, self.tip_sub).pack(
-            side="left", fill="both", expand=True)
+        self.tip_box = self._stat(stats, "TIP", self.tip_var, self.tip_sub)
+        self.tip_box.pack(side="left", fill="both", expand=True)
+        self.tip_box.bind("<Button-1>", lambda _e: self.copy_tip())
+        for child in self.tip_box.winfo_children():
+            child.bind("<Button-1>", lambda _e: self.copy_tip())
 
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill="both", expand=True, padx=12, pady=(10, 0))
@@ -285,6 +298,13 @@ class App:
         status.pack(fill="x", padx=12, pady=10)
         ttk.Label(status, textvariable=self.status_var, style="Dim.TLabel",
                   background=PANEL).pack(side="left", padx=10, pady=5)
+        ttk.Label(status, textvariable=self.meta_var, style="Dim.TLabel",
+                  background=PANEL).pack(side="right", padx=10, pady=5)
+        tk.Checkbutton(status, text="auto-refresh", variable=self.auto_refresh_var,
+                       bg=PANEL, fg=DIM, selectcolor=PANEL2, activebackground=PANEL,
+                       activeforeground=INK, font=self.fn_sm,
+                       highlightthickness=0, command=self._schedule_auto_refresh).pack(
+            side="right", padx=(0, 8))
 
     def _stat(self, parent, caption, value_var, sub_var):
         box = tk.Frame(parent, bg=PANEL)
@@ -327,10 +347,11 @@ class App:
         bar = tk.Frame(tab, bg=BG)
         bar.pack(fill="x", pady=(8, 4))
         tk.Label(bar, text="Search", bg=BG, fg=DIM, font=self.fn).pack(side="left")
-        search = self._entry(bar, self.search_var, width=50)
-        search.pack(side="left", fill="x", expand=True, padx=8, ipady=4)
-        search.bind("<Return>", lambda _e: self.do_search())
+        self.search_entry = self._entry(bar, self.search_var, width=50)
+        self.search_entry.pack(side="left", fill="x", expand=True, padx=8, ipady=4)
+        self.search_entry.bind("<Return>", lambda _e: self.do_search())
         ttk.Button(bar, text="Go", command=self.do_search).pack(side="left")
+        ttk.Button(bar, text="Copy hash", command=self.copy_block_hash).pack(side="left", padx=(8, 0))
 
         body = tk.Frame(tab, bg=BG)
         body.pack(fill="both", expand=True)
@@ -348,6 +369,7 @@ class App:
             heights=9,
         )
         self.blocks_tree.bind("<<TreeviewSelect>>", self._on_block_select)
+        self.blocks_tree.bind("<Double-1>", lambda _e: self.copy_block_hash())
 
         tk.Label(left, text="MEMPOOL", bg=BG, fg=DIM, font=(self.font, 8)).pack(anchor="w")
         self.mempool_tree = self._tree(
@@ -364,6 +386,7 @@ class App:
              ("share", "share", 70, "e")),
             heights=6,
         )
+        self.miners_tree.bind("<Double-1>", self._on_miner_pick)
         tk.Label(right, text="BALANCES", bg=BG, fg=DIM, font=(self.font, 8)).pack(anchor="w")
         self.balances_tree = self._tree(
             right, ("who", "addr", "bal"),
@@ -371,6 +394,7 @@ class App:
              ("bal", "balance", 110, "e")),
             heights=7,
         )
+        self.balances_tree.bind("<Double-1>", self._on_balance_pick)
 
         self.detail = tk.Text(tab, height=5, bg=PANEL, fg=INK, insertbackground=INK,
                               relief="flat", font=self.fn_sm, wrap="word",
@@ -434,9 +458,15 @@ class App:
         self._label_row(send, "Amount", self.amount_var, width=16)
         self._label_row(send, "Fee", self.fee_var, width=16)
         self._label_row(send, "Memo", self.memo_var, width=36)
-        self.send_btn = ttk.Button(send, text="Sign & write inbox",
+        send_btns = tk.Frame(send, bg=BG)
+        send_btns.pack(anchor="w", pady=(6, 0))
+        self.send_btn = ttk.Button(send_btns, text="Sign & write inbox",
                                    style="Copper.TButton", command=self.do_send)
-        self.send_btn.pack(anchor="w", pady=(6, 0))
+        self.send_btn.pack(side="left")
+        self.max_btn = ttk.Button(send_btns, text="Send max", command=self.do_send_max)
+        self.max_btn.pack(side="left", padx=8)
+        self.paste_btn = ttk.Button(send_btns, text="Paste address", command=self.paste_to)
+        self.paste_btn.pack(side="left")
 
         tk.Label(ident, text="IDENTITY", bg=BG, fg=DIM, font=(self.font, 8)).pack(anchor="w")
         tk.Label(ident, text="Post from the GitHub account you name.\nDisplay only — not consensus.",
@@ -558,6 +588,7 @@ class App:
         self.settings["submit"] = bool(self.submit_var.get())
         self.settings["keep_mining"] = bool(self.keep_mining_var.get())
         self.settings["cuda"] = bool(self.cuda_var.get())
+        self.settings["auto_refresh"] = bool(self.auto_refresh_var.get())
         self.settings["source"] = self.source_var.get()
         self.settings["fee"] = self.fee_var.get().strip() or DEFAULT_FEE
         self.settings["to"] = self.to_var.get().strip()
@@ -596,6 +627,38 @@ class App:
         except tk.TclError:
             self._persist()
 
+    def _bind_keys(self):
+        self.root.bind("<F5>", lambda _e: self.refresh())
+        self.root.bind("<Control-r>", lambda _e: self.refresh())
+        self.root.bind("<Control-l>", lambda _e: self._focus_search())
+        self.root.bind("<Control-f>", lambda _e: self._focus_search())
+
+    def _focus_search(self):
+        self.select_tab("Chain")
+        self.search_entry.focus_set()
+        self.search_entry.selection_range(0, "end")
+
+    def _schedule_auto_refresh(self):
+        if self._refresh_after is not None:
+            try:
+                self.root.after_cancel(self._refresh_after)
+            except tk.TclError:
+                pass
+            self._refresh_after = None
+        if not self._ready or not self.auto_refresh_var.get() or self.mining:
+            return
+        try:
+            self._refresh_after = self.root.after(30_000, self._auto_refresh)
+        except tk.TclError:
+            pass
+
+    def _auto_refresh(self):
+        self._refresh_after = None
+        if not self._ready or self.mining or not self.auto_refresh_var.get():
+            return
+        self.refresh()
+        self._schedule_auto_refresh()
+
     def _watch_fields(self):
         for var in (
             self.handle_var, self.id_handle_var, self.message_var, self.repo_var,
@@ -603,7 +666,7 @@ class App:
             self.memo_var, self.payout_var,
         ):
             var.trace_add("write", self._schedule_save)
-        for var in (self.submit_var, self.keep_mining_var, self.cuda_var):
+        for var in (self.submit_var, self.keep_mining_var, self.cuda_var, self.auto_refresh_var):
             var.trace_add("write", self._schedule_save)
         self.notebook.bind("<<NotebookTabChanged>>", lambda _e: self._schedule_save())
 
@@ -684,6 +747,8 @@ class App:
         self._paint_stats()
         self._paint_chain()
         self._paint_wallet(wallet)
+        self._paint_meta()
+        self._schedule_auto_refresh()
 
     def _paint_stats(self):
         s = self.snap
@@ -789,6 +854,19 @@ class App:
             ))
         self._fill_tree(self.outputs_tree, rows)
 
+    def _paint_meta(self):
+        from crux.pow import cuda_info
+        bits = []
+        if self.cuda_var.get():
+            bits.append(cuda_info())
+        else:
+            bits.append("cpu")
+        addr = self.address_var.get()
+        if addr.startswith("crux1"):
+            bits.append(short_hash(addr, 12))
+        bits.append("F5 refresh")
+        self.meta_var.set("  ·  ".join(bits))
+
     def select_tab(self, name: str) -> None:
         for tab_id in self.notebook.tabs():
             if self.notebook.tab(tab_id, "text") == name:
@@ -820,6 +898,76 @@ class App:
     def open_inbox_dir(self):
         self._open_dir(self.inbox_dir)
         self.status_var.set(f"opened {self.inbox_dir}")
+
+    def copy_tip(self):
+        tip = (self.snap or {}).get("tip") or self.tip_sub.get()
+        if tip and tip not in {"—", "hash", ""}:
+            self._clip(tip)
+            self.status_var.set("tip hash copied")
+
+    def copy_block_hash(self):
+        sel = self.blocks_tree.selection()
+        if sel:
+            height = int(self.blocks_tree.item(sel[0], "values")[0])
+            if 0 <= height < len(self.blocks):
+                h = self.blocks[height].block_hash()
+                self._clip(h)
+                self.status_var.set("block hash copied")
+                return
+        tip = (self.snap or {}).get("tip")
+        if tip:
+            self._clip(tip)
+            self.status_var.set("tip hash copied")
+
+    def _on_miner_pick(self, _evt=None):
+        sel = self.miners_tree.selection()
+        if not sel:
+            return
+        handle = str(self.miners_tree.item(sel[0], "values")[0]).lstrip("@")
+        self.handle_var.set(handle)
+        if not self.id_handle_var.get().strip():
+            self.id_handle_var.set(handle)
+        self.status_var.set(f"filled miner @{handle}")
+
+    def _on_balance_pick(self, _evt=None):
+        sel = self.balances_tree.selection()
+        if not sel:
+            return
+        addr = str(self.balances_tree.item(sel[0], "values")[1])
+        self.to_var.set(addr)
+        self.select_tab("Wallet")
+        self.status_var.set(f"send to {short_hash(addr, 16)}")
+
+    def paste_to(self):
+        try:
+            text = self.root.clipboard_get().strip()
+        except tk.TclError:
+            self.status_var.set("clipboard is empty")
+            return
+        self.to_var.set(text)
+        self.status_var.set("pasted destination")
+
+    def do_send_max(self):
+        view = (self.snap or {}).get("wallet") or {}
+        try:
+            self.amount_var.set(send_max_amount(int(view.get("mature") or 0), self.fee_var.get()))
+            self.status_var.set("amount set to mature balance minus fee")
+        except DesktopError as exc:
+            self.dialogs.showerror("Send max", str(exc))
+            self.status_var.set(str(exc))
+
+    def show_about(self):
+        from crux.pow import cuda_info
+        self.dialogs.showinfo(
+            "CRUX",
+            f"CRUX {__version__}\n"
+            "A Bitcoin-like chain whose ledger is a git repository.\n\n"
+            f"Solver  {cuda_info()}\n"
+            f"Wallet  {self.wallet_path}\n\n"
+            "Coins are worth nothing. MIT license.\n"
+            f"{EXPLORER_URL}\n"
+            "https://github.com/ksanjeev284/crux",
+        )
 
     def copy_address(self):
         addr = self.address_var.get()
@@ -881,6 +1029,22 @@ class App:
         self._persist()
 
     def do_send(self):
+        to = self.to_var.get().strip()
+        amount = self.amount_var.get().strip()
+        try:
+            if not cryptomod.address_is_valid(to):
+                raise DesktopError(f"invalid destination address: {to}")
+            grains = parse_amount(amount)
+        except DesktopError as exc:
+            self.dialogs.showerror("Send", str(exc))
+            self.status_var.set(str(exc))
+            return
+        if not self.dialogs.askyesno(
+            "Send",
+            f"Sign {format_amount(grains)} CRUX to\n{to}\n\n"
+            f"Fee {self.fee_var.get() or DEFAULT_FEE} CRUX. Write inbox/tx-….txt?",
+        ):
+            return
         try:
             wallet = load_wallet(self.wallet_path)
             result = build_send(
@@ -1181,7 +1345,7 @@ class App:
     def shutdown(self):
         self._ready = False
         self._pumping = False
-        for attr in ("_save_after", "_pump_after"):
+        for attr in ("_save_after", "_pump_after", "_refresh_after"):
             job = getattr(self, attr, None)
             if job is not None:
                 try:

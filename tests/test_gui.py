@@ -34,6 +34,7 @@ from crux.desktop import (
     build_send,
     create_wallet,
     default_settings,
+    send_max_amount,
     issue_url,
     load_settings,
     load_wallet,
@@ -164,9 +165,13 @@ class FakeDialogs:
         self.yes = yes
         self.errors = []
         self.questions = []
+        self.infos = []
 
     def showerror(self, title, msg):
         self.errors.append((title, msg))
+
+    def showinfo(self, title, msg):
+        self.infos.append((title, msg))
 
     def askyesno(self, title, msg):
         self.questions.append((title, msg))
@@ -231,7 +236,7 @@ def run_headless():
         keys = default_settings()
         for name in (
             "handle", "id_handle", "repo", "message", "submit", "keep_mining",
-            "cuda", "source", "fee", "to", "amount", "memo", "payout", "last_tab",
+            "cuda", "auto_refresh", "source", "fee", "to", "amount", "memo", "payout", "last_tab",
             "geometry", "last_line", "last_title", "wallet_path",
         ):
             assert name in keys, name
@@ -488,6 +493,11 @@ def run_headless():
             assert fh.read() == "crux-tx-v1:hi\n"
         ok("write_inbox stores the submission line")
 
+    assert send_max_amount(2 * k.COIN, "0.001") == "1.99900000"
+    expect_error("send max with only a fee leftover rejected",
+                 lambda: send_max_amount(1000, "0.001"))
+    ok("send_max_amount is mature minus fee")
+
     # ---- runtime paths -------------------------------------------------
     assert pathmod.frozen() is False
     assert default_settings()["source"] == "local"
@@ -573,7 +583,8 @@ def run_widgets():
         for name in (
             "to_var", "amount_var", "fee_var", "memo_var", "handle_var",
             "id_handle_var", "message_var", "payout_var", "repo_var",
-            "source_var", "submit_var", "keep_mining_var", "cuda_var", "pubkey_var",
+            "source_var", "submit_var", "keep_mining_var", "cuda_var",
+            "auto_refresh_var", "pubkey_var", "max_btn", "paste_btn",
             "wallet_path_var", "search_var", "start_btn", "stop_btn",
             "send_btn", "id_btn", "verify_btn", "new_wallet_btn",
         ):
@@ -591,6 +602,24 @@ def run_widgets():
         ok("miners tree is populated")
         assert app.balances_tree.get_children()
         ok("balances tree is populated")
+
+        app.miners_tree.selection_set(app.miners_tree.get_children()[0])
+        app._on_miner_pick()
+        assert app.handle_var.get()
+        ok("picking a miner fills the mine handle")
+
+        app.balances_tree.selection_set(app.balances_tree.get_children()[0])
+        app._on_balance_pick()
+        assert app.to_var.get().startswith("crux1")
+        assert app.current_tab() == "Wallet"
+        ok("picking a balance fills send-to and opens the wallet tab")
+
+        app.show_about()
+        assert app.dialogs.infos and "CRUX" in app.dialogs.infos[-1][1]
+        ok("About shows version and solver")
+
+        app.copy_tip()
+        ok("copy tip is safe to call")
 
         app.select_tab("Wallet")
         assert app.current_tab() == "Wallet"
@@ -778,6 +807,9 @@ def run_widgets():
             assert app.pubkey_var.get() == alice_pub
             assert "CRUX" in app.balance_var.get()
             ok("wallet tab shows balance from a local test chain")
+            app.do_send_max()
+            assert float(app.amount_var.get()) > 0
+            ok("send max fills the amount from mature funds")
 
             app.to_var.set(bob_addr)
             app.amount_var.set("1.25")

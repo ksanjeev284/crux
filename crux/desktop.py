@@ -73,6 +73,14 @@ def parse_amount(s: str) -> int:
     return int(whole or "0") * COIN + int(frac.ljust(8, "0"))
 
 
+def send_max_amount(mature: int, fee_str: str = DEFAULT_FEE) -> str:
+    """Largest sendable amount given mature grains and a fee string."""
+    fee = parse_amount(fee_str or DEFAULT_FEE)
+    if mature <= fee:
+        raise DesktopError("nothing mature to send after the fee")
+    return format_amount(mature - fee)
+
+
 def write_inbox(kind: str, name: str, line: str, inbox_dir: str = "inbox") -> str:
     os.makedirs(inbox_dir, exist_ok=True)
     path = os.path.join(inbox_dir, f"{kind}-{name}.txt")
@@ -164,6 +172,7 @@ def default_settings() -> dict:
         "submit": False,
         "keep_mining": False,
         "cuda": True,
+        "auto_refresh": True,
         # A downloaded binary has no git checkout of chain/, so follow the
         # published repo until the user switches to a local copy.
         "source": "remote" if frozen() else "local",

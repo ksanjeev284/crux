@@ -6,6 +6,14 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/ksanjeev284/crux/releases/latest"><img src="https://img.shields.io/github/v/release/ksanjeev284/crux?style=flat-square&color=e08a45" alt="release"></a>
+  <a href="https://github.com/ksanjeev284/crux/actions/workflows/verify.yml"><img src="https://img.shields.io/github/actions/workflow/status/ksanjeev284/crux/verify.yml?style=flat-square&label=verify" alt="verify"></a>
+  <img src="https://img.shields.io/badge/python-3.9%2B-5ca3b0?style=flat-square" alt="python">
+  <img src="https://img.shields.io/badge/PoW-knapsack%20%2B%20nBits-9A4A18?style=flat-square" alt="pow">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-8A8276?style=flat-square" alt="MIT"></a>
+</p>
+
+<p align="center">
   <a href="https://ksanjeev284.github.io/crux/"><b>Block explorer</b></a> ·
   <a href="https://github.com/ksanjeev284/crux/releases/latest"><b>Download</b></a> ·
   <a href="#desktop-gui"><b>Desktop GUI</b></a> ·
@@ -68,6 +76,14 @@ _Find your own name here once you have run `python3 wallet.py identity`._
 <!-- CRUX:END -->
 
 ---
+
+## Start here
+
+1. **[Download the desktop app](https://github.com/ksanjeev284/crux/releases/latest)** for Windows, macOS or Linux — or `python3 gui.py` from a clone.
+2. **New wallet** → **Mine** (your GitHub handle) → **Open GitHub issue**. CUDA is used automatically if an NVIDIA driver is present.
+3. **`python3 verify.py`** — trust `chain/blocks.jsonl`, not this page.
+
+Coins are worth nothing. The sport is beating `miner.py`.
 
 ## What this is
 
@@ -157,7 +173,7 @@ Four tabs, matching the CLI:
 |---|---|
 | **Chain** | Height, difficulty, supply, recent blocks, miners, balances, mempool. Search a height, hash, `crux1…` address or `@handle`. |
 | **Wallet** | New key, address, balance, unspent outputs. Sign a transfer or an identity. Writes `inbox/tx-….txt` / `inbox/id-….txt`. |
-| **Mine** | Start / stop the reference solver. Follow the local chain or the GitHub repo. Writes `inbox/block-….txt`. |
+| **Mine** | Start / stop. Local or remote chain. CUDA knapsack solver when an NVIDIA GPU is present. Writes `inbox/block-….txt`. |
 | **Verify** | Replays `chain/blocks.jsonl` the same way `python3 verify.py` does. Trusts nothing else. |
 
 Every submission is still a `crux-*-v1:` line. Copy it, or click **Open GitHub issue** to post it as a new `crux` issue. Do not comment on an old issue.
@@ -186,8 +202,9 @@ python3 miner.py --cuda --miner YOUR_GITHUB_HANDLE --message "gm"   # GPU, optio
 Mining is the only place CUDA appears. The knapsack is still n=44 and the
 proof is still 8 bytes; the GPU just searches faster. `--cpu` forces the
 reference Python solver. `CRUX_CUDA=0` does the same. No extra package is
-required for consensus or `verify.py`. A GPU solver is used when Numba
-CUDA or an `nvcc`-built `crux/cuda/knapsack.cu` library is available.
+required for consensus or `verify.py`. The miner talks to the NVIDIA
+driver with a PTX kernel when a GPU is present; Numba CUDA or an
+`nvcc`-built `crux/cuda/knapsack.cu` library are optional fallbacks.
 
 It solves knapsacks until the header hashes below the current target, then
 prints a line starting with `crux-block-v1:` and writes `inbox/block-….txt`.
@@ -289,6 +306,7 @@ catches me.
 ```bash
 python3 tests/test_chain.py
 python3 tests/test_pow.py
+python3 tests/test_cuda.py
 python3 tests/test_gui.py
 ```
 
@@ -304,6 +322,7 @@ takes seconds.
 ```
 crux/crypto.py       secp256k1, RFC 6979 ECDSA, bech32
 crux/pow.py          subset-sum: instance, solver, hash-target check
+crux/pow_cuda.py     optional GPU solver (NVIDIA driver / PTX)
 crux/consensus.py    nBits, retargeting, merkle, UTXO set, validation
 crux/chain.py        load, replay, extend
 crux/render.py       this page
