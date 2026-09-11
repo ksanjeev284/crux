@@ -18,24 +18,25 @@
 
 <!-- CRUX:BEGIN -->
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="assets/ledger-dark.svg?v=64"><img src="assets/ledger-light.svg?v=64" width="100%" alt="CRUX ledger, height 64"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="assets/ledger-dark.svg?v=65"><img src="assets/ledger-light.svg?v=65" width="100%" alt="CRUX ledger, height 65"></picture>
 
 | | |
 |---|---|
-| **height** | `64` |
-| **tip** | `0001fb352702ea9f0399b3dc59501881ea64cd7c8782b8827c8036cee953fd33` |
+| **height** | `65` |
+| **tip** | `0012622f7ba36177e2de2d6a093fdf568b5c28298b67df393379f07d0761fe8a` |
 | **difficulty** | `1,024.0`  (bits `0x1f400000`) |
-| **chainwork** | `7,359` expected hashes |
-| **supply** | `3250.00000000 CRUX` in `65` unspent outputs |
+| **chainwork** | `8,382` expected hashes |
+| **supply** | `3300.00000000 CRUX` in `66` unspent outputs |
 | **next reward** | `50.00000000 CRUX` |
-| **next retarget** | in `15` block(s) |
-| **next halving** | in `209935` block(s) |
-| **transactions** | `65` |
+| **next retarget** | in `14` block(s) |
+| **next halving** | in `209934` block(s) |
+| **transactions** | `66` |
 
 ### Recent blocks
 
 | # | hash | miner | message | txs | reward | mined |
 |--:|---|---|---|--:|--:|---|
+| `65` | `0012622f7ba36177e2de…` | [@americanvain](https://github.com/americanvain) | &nbsp; | `1` | `50.00000000` | 2026-09-11 05:05 UTC |
 | `64` | `0001fb352702ea9f0399…` | [@americanvain](https://github.com/americanvain) | &nbsp; | `1` | `50.00000000` | 2026-09-11 05:04 UTC |
 | `63` | `00239b06c8e71d0f3b1a…` | [@americanvain](https://github.com/americanvain) | &nbsp; | `1` | `50.00000000` | 2026-09-11 05:04 UTC |
 | `62` | `004a538195000797d6f4…` | [@americanvain](https://github.com/americanvain) | &nbsp; | `1` | `50.00000000` | 2026-09-11 05:02 UTC |
@@ -45,13 +46,12 @@
 | `58` | `0028db9dc7f3ef54ffcb…` | [@americanvain](https://github.com/americanvain) | &nbsp; | `1` | `50.00000000` | 2026-09-11 05:00 UTC |
 | `57` | `001e70c8e8dc7ba3a311…` | [@americanvain](https://github.com/americanvain) | &nbsp; | `1` | `50.00000000` | 2026-09-11 04:59 UTC |
 | `56` | `00f784de53754a4f34ef…` | [@americanvain](https://github.com/americanvain) | &nbsp; | `1` | `50.00000000` | 2026-09-11 04:58 UTC |
-| `55` | `0062b45886824ca4ca36…` | [@americanvain](https://github.com/americanvain) | &nbsp; | `1` | `50.00000000` | 2026-09-11 04:58 UTC |
 
 ### Miners
 
 | miner | blocks | share |
 |---|--:|--:|
-| [@americanvain](https://github.com/americanvain) | `64` | `98.5%` |
+| [@americanvain](https://github.com/americanvain) | `65` | `98.5%` |
 | [@ksanjeev284](https://github.com/ksanjeev284) | `1` | `1.5%` |
 
 ### Balances
@@ -60,10 +60,10 @@ _Find your own name here once you have run `python3 wallet.py identity`._
 
 | holder | address | balance |
 |---|---|--:|
-| [@americanvain](https://github.com/americanvain) | `crux1qfhk8zkgy4axu0skh40kaxyctljm6s9qpqdkxwh` | `3200.00000000 CRUX` |
+| [@americanvain](https://github.com/americanvain) | `crux1qfhk8zkgy4axu0skh40kaxyctljm6s9qpqdkxwh` | `3250.00000000 CRUX` |
 | [@ksanjeev284](https://github.com/ksanjeev284) | `crux1qvwj29crmyt86amr7z8r6hqsd8sq3fr7dtnre5m` | `50.00000000 CRUX` |
 
-<sub>Rendered from `chain/blocks.jsonl` at height 64. Verify it yourself: <code>python3 verify.py</code></sub>
+<sub>Rendered from `chain/blocks.jsonl` at height 65. Verify it yourself: <code>python3 verify.py</code></sub>
 
 <!-- CRUX:END -->
 
