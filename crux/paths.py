@@ -41,3 +41,31 @@ def default_runtime_paths() -> dict:
         "registry_path": os.path.join(chain, "registry.json"),
         "mempool_path": os.path.join(chain, "mempool.jsonl"),
     }
+
+
+def resolve_wallet_path(preferred: str) -> str:
+    """
+    Use `preferred` if it exists. Fall back to cwd / the frozen executable
+    only when `preferred` is the default data-dir wallet, so a test that
+    points at a temp path cannot pick up a different wallet by accident.
+    """
+    preferred = os.path.abspath(preferred)
+    if os.path.isfile(preferred):
+        return preferred
+    default_home = os.path.abspath(default_runtime_paths()["wallet_path"])
+    cwd_wallet = os.path.abspath(os.path.join(os.getcwd(), "crux-wallet.json"))
+    if preferred not in {default_home, cwd_wallet}:
+        return preferred
+    candidates = [cwd_wallet, default_home]
+    if frozen():
+        exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+        candidates.append(os.path.join(exe_dir, "crux-wallet.json"))
+    seen = set()
+    for path in candidates:
+        abs_path = os.path.abspath(path)
+        if abs_path in seen:
+            continue
+        seen.add(abs_path)
+        if os.path.isfile(abs_path):
+            return abs_path
+    return preferred

@@ -158,14 +158,43 @@ def create_wallet(path: str = WALLET_FILE, force: bool = False) -> dict:
 def default_settings() -> dict:
     return {
         "handle": "",
+        "id_handle": "",
         "repo": DEFAULT_REPO,
         "message": "gm",
         "submit": False,
+        "keep_mining": False,
         # A downloaded binary has no git checkout of chain/, so follow the
         # published repo until the user switches to a local copy.
         "source": "remote" if frozen() else "local",
         "fee": DEFAULT_FEE,
+        "to": "",
+        "amount": "",
+        "memo": "",
+        "payout": "",
+        "last_tab": "Chain",
+        "geometry": "1020x700",
+        "last_line": "",
+        "last_title": "",
+        "wallet_path": "",
     }
+
+
+def autofill_from_wallet(settings: dict, wallet: dict | None, registry: dict | None = None) -> dict:
+    """Fill empty GUI fields from an existing wallet and the name registry."""
+    out = dict(settings)
+    if not wallet:
+        return out
+    addr = (wallet.get("address") or "").strip()
+    if addr and not (out.get("payout") or "").strip():
+        out["payout"] = addr
+    if not (out.get("handle") or "").strip() and registry:
+        for handle, rec in registry.items():
+            if isinstance(rec, dict) and rec.get("address") == addr:
+                out["handle"] = handle
+                break
+    if not (out.get("id_handle") or "").strip():
+        out["id_handle"] = (out.get("handle") or "").strip()
+    return out
 
 
 def load_settings(path: str = SETTINGS_FILE) -> dict:
