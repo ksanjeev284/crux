@@ -29,6 +29,7 @@ from crux import __version__
 from crux.desktop import (
     DEFAULT_REPO,
     DesktopError,
+    autofill_from_wallet,
     build_identity,
     build_send,
     create_wallet,
@@ -226,6 +227,64 @@ def run_headless():
             fh.write("{not json")
         assert load_settings(path)["repo"] == DEFAULT_REPO
         ok("corrupt settings file falls back to defaults")
+
+        keys = default_settings()
+        for name in (
+            "handle", "id_handle", "repo", "message", "submit", "keep_mining",
+            "source", "fee", "to", "amount", "memo", "payout", "last_tab",
+            "geometry", "last_line", "last_title", "wallet_path",
+        ):
+            assert name in keys, name
+        full = dict(keys)
+        full.update({
+            "handle": "alice",
+            "id_handle": "alice",
+            "repo": "alice/crux",
+            "message": "saved message",
+            "submit": True,
+            "keep_mining": True,
+            "source": "remote",
+            "fee": "0.002",
+            "to": "crux1qvwj29crmyt86amr7z8r6hqsd8sq3fr7dtnre5m",
+            "amount": "1.5",
+            "memo": "keep me",
+            "payout": "crux1qvwj29crmyt86amr7z8r6hqsd8sq3fr7dtnre5m",
+            "last_tab": "Mine",
+            "geometry": "1100x720",
+            "last_line": "crux-tx-v1:abc",
+            "last_title": "crux tx abc",
+            "wallet_path": "/tmp/w.json",
+        })
+        save_settings(full, path)
+        back = load_settings(path)
+        for key, value in full.items():
+            assert back[key] == value, (key, back[key], value)
+        ok("every GUI setting round-trips through crux-gui.json")
+
+        w = {"address": "crux1qvwj29crmyt86amr7z8r6hqsd8sq3fr7dtnre5m"}
+        empty = default_settings()
+        filled = autofill_from_wallet(empty, w, {
+            "ksanjeev284": {"address": w["address"]},
+        })
+        assert filled["payout"] == w["address"]
+        assert filled["handle"] == "ksanjeev284"
+        assert filled["id_handle"] == "ksanjeev284"
+        kept = autofill_from_wallet(
+            {**empty, "payout": "already", "handle": "octocat", "id_handle": "octocat"},
+            w,
+            {"ksanjeev284": {"address": w["address"]}},
+        )
+        assert kept["payout"] == "already"
+        assert kept["handle"] == "octocat"
+        ok("existing wallet fills empty payout/handle and does not clobber saved values")
+
+        with tempfile.TemporaryDirectory() as tmp2:
+            missing = os.path.join(tmp2, "nope.json")
+            assert pathmod.resolve_wallet_path(missing) == os.path.abspath(missing)
+            real = os.path.join(tmp2, "crux-wallet.json")
+            create_wallet(real)
+            assert pathmod.resolve_wallet_path(real) == os.path.abspath(real)
+        ok("resolve_wallet_path keeps an explicit path and finds a real wallet")
 
     # ---- issue URL -----------------------------------------------------
     url = issue_url("ksanjeev284/crux", "crux block 1 abc", "crux-block-v1:xyz")
@@ -511,6 +570,16 @@ def run_widgets():
         assert tabs == ["Chain", "Wallet", "Mine", "Verify"], tabs
         ok("notebook has Chain, Wallet, Mine, Verify")
 
+        for name in (
+            "to_var", "amount_var", "fee_var", "memo_var", "handle_var",
+            "id_handle_var", "message_var", "payout_var", "repo_var",
+            "source_var", "submit_var", "keep_mining_var", "pubkey_var",
+            "wallet_path_var", "search_var", "start_btn", "stop_btn",
+            "send_btn", "id_btn", "verify_btn", "new_wallet_btn",
+        ):
+            assert hasattr(app, name), name
+        ok("every GUI field and action widget exists")
+
         live = verify_chain(blocks_path=live_blocks_path)
         assert app.height_var.get() == str(live["height"])
         assert short_ok(app.tip_var.get(), live["tip"])
@@ -582,8 +651,93 @@ def run_widgets():
         assert app.mining is False
         ok("start mining with an empty handle is rejected")
 
-        app._pumping = False
-        app.stop_event.set()
+        app.shutdown()
+        root.destroy()
+
+    with tempfile.TemporaryDirectory() as tmp:
+        wpath = os.path.join(tmp, "crux-wallet.json")
+        created = create_wallet(wpath)
+        spath = os.path.join(tmp, "s.json")
+        saved = default_settings()
+        saved.update({
+            "handle": "octocat",
+            "id_handle": "octocat",
+            "repo": "octocat/crux",
+            "message": "hello-gui",
+            "submit": True,
+            "keep_mining": True,
+            "source": "local",
+            "fee": "0.002",
+            "to": "crux1qvwj29crmyt86amr7z8r6hqsd8sq3fr7dtnre5m",
+            "amount": "3.14",
+            "memo": "persisted memo",
+            "payout": "",
+            "last_tab": "Mine",
+            "last_line": "crux-id-v1:octocat:pub:sig",
+            "last_title": "crux identity octocat",
+            "wallet_path": wpath,
+        })
+        save_settings(saved, spath)
+        root = tk.Tk()
+        root.withdraw()
+        app = guimod.App(
+            root,
+            wallet_path=wpath,
+            settings_path=spath,
+            blocks_path=live_blocks_path,
+            registry_path=live_reg,
+            mempool_path=live_mem,
+            inbox_dir=os.path.join(tmp, "inbox"),
+        )
+        app.dialogs = FakeDialogs()
+        root.update_idletasks()
+        assert app.address_var.get() == created["address"]
+        assert app.payout_var.get() == created["address"]
+        assert app.pubkey_var.get() == created["pubkey"]
+        assert app.handle_var.get() == "octocat"
+        assert app.id_handle_var.get() == "octocat"
+        assert app.message_var.get() == "hello-gui"
+        assert app.repo_var.get() == "octocat/crux"
+        assert app.to_var.get().startswith("crux1")
+        assert app.amount_var.get() == "3.14"
+        assert app.memo_var.get() == "persisted memo"
+        assert app.fee_var.get() == "0.002"
+        assert app.submit_var.get() is True
+        assert app.keep_mining_var.get() is True
+        assert app.source_var.get() == "local"
+        assert app.current_tab() == "Mine"
+        assert "crux-id-v1" in app.result_text.get("1.0", "end")
+        ok("existing wallet and saved settings fill every field on launch")
+
+        app.to_var.set("crux1qnewaddresssavedxxxxxxxxxxxxxxxxxxxxxxxx")
+        app._persist()
+        back = load_settings(spath)
+        assert back["to"] == "crux1qnewaddresssavedxxxxxxxxxxxxxxxxxxxxxxxx"
+        assert back["handle"] == "octocat"
+        assert back["keep_mining"] is True
+        ok("changing a field persists so the next launch does not start blank")
+
+        app.shutdown()
+        root.destroy()
+
+        saved["payout"] = "keep-custom-payout"
+        save_settings(saved, spath)
+        root = tk.Tk()
+        root.withdraw()
+        app = guimod.App(
+            root,
+            wallet_path=wpath,
+            settings_path=spath,
+            blocks_path=live_blocks_path,
+            registry_path=live_reg,
+            mempool_path=live_mem,
+            inbox_dir=os.path.join(tmp, "inbox"),
+        )
+        root.update_idletasks()
+        assert app.payout_var.get() == "keep-custom-payout"
+        assert app.address_var.get() == created["address"]
+        ok("custom payout is restored and not overwritten by the wallet address")
+        app.shutdown()
         root.destroy()
 
     # second app: existing wallet, send a real tx against a tiny chain
@@ -620,6 +774,8 @@ def run_widgets():
             app.dialogs = FakeDialogs()
             root.update_idletasks()
             assert app.address_var.get() == alice_addr
+            assert app.payout_var.get() == alice_addr
+            assert app.pubkey_var.get() == alice_pub
             assert "CRUX" in app.balance_var.get()
             ok("wallet tab shows balance from a local test chain")
 
@@ -672,8 +828,7 @@ def run_widgets():
             )
             ok("mine tab finds a block the chain accepts")
 
-            app._pumping = False
-            app.stop_event.set()
+            app.shutdown()
             root.destroy()
     finally:
         restore_pow()

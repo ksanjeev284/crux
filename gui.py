@@ -20,11 +20,11 @@ import threading
 import tkinter as tk
 import tkinter.font as tkfont
 import webbrowser
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 
 from crux import __version__
 from crux.consensus import format_amount
-from crux.paths import default_runtime_paths, frozen, user_data_dir
+from crux.paths import default_runtime_paths, frozen, resolve_wallet_path, user_data_dir
 from crux.desktop import (
     DEFAULT_FEE,
     DEFAULT_REPO,
@@ -32,6 +32,7 @@ from crux.desktop import (
     SETTINGS_FILE,
     WALLET_FILE,
     DesktopError,
+    autofill_from_wallet,
     build_identity,
     build_send,
     create_wallet,
@@ -91,16 +92,28 @@ class App:
         repo: str | None = None,
     ):
         self.root = root
-        self.wallet_path = wallet_path
         self.settings_path = settings_path
         self.blocks_path = blocks_path or chainmod.BLOCKS_FILE
         self.registry_path = registry_path or os.path.join("chain", "registry.json")
         self.mempool_path = mempool_path or os.path.join("chain", "mempool.jsonl")
         self.inbox_dir = inbox_dir
 
+        loaded = load_settings(settings_path)
+        saved_wallet = (loaded.get("wallet_path") or "").strip()
+        if saved_wallet and os.path.isfile(saved_wallet) and not os.path.isfile(wallet_path):
+            wallet_path = saved_wallet
+        self.wallet_path = resolve_wallet_path(wallet_path)
+
         self.settings = load_settings(settings_path)
         if repo:
             self.settings["repo"] = repo
+        if wallet_present(self.wallet_path):
+            try:
+                early = load_wallet(self.wallet_path)
+            except DesktopError:
+                early = None
+            if early:
+                self.settings = autofill_from_wallet(self.settings, early)
 
         self.queue: queue.Queue = queue.Queue()
         self.stop_event = threading.Event()
@@ -111,18 +124,28 @@ class App:
         self.snap: dict = {}
         self.last_result: dict | None = None
         self._pumping = True
+        self._ready = False
+        self._save_after = None
         self.dialogs = messagebox
 
         self._style()
         self._vars()
         self._build()
+        self._restore_window()
         self.refresh()
+        self._restore_last_result()
+        try:
+            self.select_tab(self.settings.get("last_tab") or "Chain")
+        except KeyError:
+            pass
+        self._watch_fields()
+        self._ready = True
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
-        self.root.after(200, self._pump)
+        self._pump_after = self.root.after(200, self._pump)
 
     # ------------------------------------------------------------------ ui
     def _style(self):
-        self.root.title("CRUX")
+        self.root.title(f"CRUX {__version__}")
         self.root.configure(bg=BG)
         self.root.minsize(860, 580)
         self.root.geometry("1020x700")
@@ -199,22 +222,30 @@ class App:
         self.repo_var = tk.StringVar(value=self.settings.get("repo", DEFAULT_REPO))
         self.source_var = tk.StringVar(value=self.settings.get("source", "local"))
         self.submit_var = tk.BooleanVar(value=bool(self.settings.get("submit")))
-        self.to_var = tk.StringVar()
-        self.amount_var = tk.StringVar()
+        self.keep_mining_var = tk.BooleanVar(value=bool(self.settings.get("keep_mining")))
+        self.to_var = tk.StringVar(value=self.settings.get("to", ""))
+        self.amount_var = tk.StringVar(value=self.settings.get("amount", ""))
         self.fee_var = tk.StringVar(value=self.settings.get("fee", DEFAULT_FEE))
-        self.memo_var = tk.StringVar()
-        self.id_handle_var = tk.StringVar(value=self.settings.get("handle", ""))
+        self.memo_var = tk.StringVar(value=self.settings.get("memo", ""))
+        self.id_handle_var = tk.StringVar(
+            value=self.settings.get("id_handle") or self.settings.get("handle", "")
+        )
         self.search_var = tk.StringVar()
-        self.payout_var = tk.StringVar(value="")
+        self.payout_var = tk.StringVar(value=self.settings.get("payout", ""))
+        self.pubkey_var = tk.StringVar(value="")
+        self.wallet_path_var = tk.StringVar(value=self.wallet_path)
 
     def _build(self):
         pad = {"padx": 12, "pady": 8}
         header = tk.Frame(self.root, bg=BG)
         header.pack(fill="x", **pad)
         ttk.Label(header, text="CRUX", style="Brand.TLabel").pack(side="left")
-        ttk.Label(header, text="desktop", style="Dim.TLabel").pack(side="left", padx=(8, 0))
+        ttk.Label(header, text=f"desktop  v{__version__}", style="Dim.TLabel").pack(
+            side="left", padx=(8, 0))
 
-        ttk.Button(header, text="Explorer", command=self.open_explorer).pack(side="right")
+        ttk.Button(header, text="Data folder", command=self.open_data_dir).pack(side="right")
+        ttk.Button(header, text="Explorer", command=self.open_explorer).pack(
+            side="right", padx=(0, 8))
         ttk.Button(header, text="Refresh", command=self.refresh).pack(side="right", padx=(0, 8))
         tk.Entry(header, textvariable=self.repo_var, bg=PANEL2, fg=INK, insertbackground=INK,
                  relief="flat", font=self.fn, width=28,
@@ -355,14 +386,31 @@ class App:
         addr.pack(side="left", fill="x", expand=True, ipady=4)
         addr.configure(state="readonly", readonlybackground=PANEL2, fg=TEAL)
         ttk.Button(top, text="Copy", command=self.copy_address).pack(side="left", padx=6)
+        ttk.Button(top, text="Load…", command=self.do_load_wallet).pack(side="left", padx=(0, 6))
         self.new_wallet_btn = ttk.Button(top, text="New wallet", style="Copper.TButton",
                                          command=self.do_new_wallet)
         self.new_wallet_btn.pack(side="left")
 
+        pubrow = tk.Frame(tab, bg=BG)
+        pubrow.pack(fill="x", pady=(4, 0))
+        tk.Label(pubrow, text="Pubkey", bg=BG, fg=DIM, font=self.fn, width=12,
+                 anchor="w").pack(side="left")
+        pub = self._entry(pubrow, self.pubkey_var, width=52)
+        pub.pack(side="left", fill="x", expand=True, ipady=4)
+        pub.configure(state="readonly", readonlybackground=PANEL2, fg=DIM)
+        ttk.Button(pubrow, text="Copy", command=self.copy_pubkey).pack(side="left", padx=6)
+
+        tk.Label(tab, textvariable=self.wallet_path_var, bg=BG, fg=DIM2,
+                 font=self.fn_sm, anchor="w").pack(fill="x", pady=(2, 0))
         tk.Label(tab, textvariable=self.balance_var, bg=BG, fg=COPPER,
                  font=self.fn_lg, anchor="w").pack(fill="x", pady=(4, 0))
         tk.Label(tab, textvariable=self.mature_var, bg=BG, fg=DIM,
                  font=self.fn_sm, anchor="w").pack(fill="x")
+        files = tk.Frame(tab, bg=BG)
+        files.pack(fill="x", pady=(4, 0))
+        ttk.Button(files, text="Open inbox", command=self.open_inbox_dir).pack(side="left")
+        ttk.Button(files, text="Open data folder", command=self.open_data_dir).pack(
+            side="left", padx=8)
 
         tk.Label(tab, text="UNSPENT OUTPUTS", bg=BG, fg=DIM,
                  font=(self.font, 8)).pack(anchor="w", pady=(8, 0))
@@ -423,6 +471,10 @@ class App:
                        variable=self.submit_var, bg=BG, fg=INK, selectcolor=PANEL2,
                        activebackground=BG, activeforeground=INK, font=self.fn_sm,
                        highlightthickness=0).pack(side="left")
+        tk.Checkbutton(chk, text="Keep mining after each block",
+                       variable=self.keep_mining_var, bg=BG, fg=INK, selectcolor=PANEL2,
+                       activebackground=BG, activeforeground=INK, font=self.fn_sm,
+                       highlightthickness=0).pack(side="left", padx=(16, 0))
 
         btns = tk.Frame(tab, bg=BG)
         btns.pack(fill="x", pady=(8, 6))
@@ -489,18 +541,90 @@ class App:
 
     def _persist(self):
         self.settings["handle"] = self.handle_var.get().strip()
+        self.settings["id_handle"] = self.id_handle_var.get().strip()
         self.settings["repo"] = self.repo_var.get().strip() or DEFAULT_REPO
         self.settings["message"] = self.message_var.get()
         self.settings["submit"] = bool(self.submit_var.get())
+        self.settings["keep_mining"] = bool(self.keep_mining_var.get())
         self.settings["source"] = self.source_var.get()
         self.settings["fee"] = self.fee_var.get().strip() or DEFAULT_FEE
+        self.settings["to"] = self.to_var.get().strip()
+        self.settings["amount"] = self.amount_var.get().strip()
+        self.settings["memo"] = self.memo_var.get()
+        payout = self.payout_var.get().strip()
+        addr = self.address_var.get().strip()
+        self.settings["payout"] = "" if payout == addr else payout
+        try:
+            self.settings["last_tab"] = self.current_tab()
+        except Exception:
+            pass
+        try:
+            self.settings["geometry"] = self.root.geometry()
+        except tk.TclError:
+            pass
+        if self.last_result:
+            self.settings["last_line"] = self.last_result.get("line", "")
+            self.settings["last_title"] = self.last_result.get("title", "")
+        self.settings["wallet_path"] = os.path.abspath(self.wallet_path)
         try:
             save_settings(self.settings, self.settings_path)
         except OSError:
             pass
 
+    def _schedule_save(self, *_args):
+        if not self._ready:
+            return
+        if self._save_after is not None:
+            try:
+                self.root.after_cancel(self._save_after)
+            except tk.TclError:
+                pass
+        try:
+            self._save_after = self.root.after(400, self._persist)
+        except tk.TclError:
+            self._persist()
+
+    def _watch_fields(self):
+        for var in (
+            self.handle_var, self.id_handle_var, self.message_var, self.repo_var,
+            self.source_var, self.to_var, self.amount_var, self.fee_var,
+            self.memo_var, self.payout_var,
+        ):
+            var.trace_add("write", self._schedule_save)
+        for var in (self.submit_var, self.keep_mining_var):
+            var.trace_add("write", self._schedule_save)
+        self.notebook.bind("<<NotebookTabChanged>>", lambda _e: self._schedule_save())
+
+    def _restore_window(self):
+        geo = (self.settings.get("geometry") or "").strip()
+        if geo:
+            try:
+                self.root.geometry(geo.split("+")[0] if "x" in geo else "1020x700")
+                if "+" in geo:
+                    self.root.geometry(geo)
+            except tk.TclError:
+                pass
+
+    def _restore_last_result(self):
+        line = (self.settings.get("last_line") or "").strip()
+        if not line:
+            return
+        self.last_result = {
+            "line": line,
+            "title": self.settings.get("last_title") or "crux submission",
+        }
+        try:
+            self._set_text(self.result_text, line)
+        except tk.TclError:
+            pass
+        try:
+            self._set_text(self.mine_result, line)
+        except tk.TclError:
+            pass
+
     def refresh(self):
-        self._persist()
+        if self._ready:
+            self._persist()
         wallet = None
         if wallet_present(self.wallet_path):
             try:
@@ -535,6 +659,15 @@ class App:
             self.blocks = []
             self.mempool = []
             self.registry = {}
+
+        if wallet:
+            self.settings = autofill_from_wallet(self.settings, wallet, self.registry)
+            if not self.handle_var.get().strip() and self.settings.get("handle"):
+                self.handle_var.set(self.settings["handle"])
+            if not self.id_handle_var.get().strip() and self.settings.get("id_handle"):
+                self.id_handle_var.set(self.settings["id_handle"])
+            if not self.payout_var.get().strip() and self.settings.get("payout"):
+                self.payout_var.set(self.settings["payout"])
 
         self._paint_stats()
         self._paint_chain()
@@ -602,16 +735,21 @@ class App:
 
     def _paint_wallet(self, wallet):
         view = self.snap.get("wallet")
+        self.wallet_path_var.set(self.wallet_path)
         if wallet is None:
             self.address_var.set("no wallet — click New wallet")
+            self.pubkey_var.set("")
             self.balance_var.set("")
             self.mature_var.set("")
-            self.payout_var.set("")
+            self.new_wallet_btn.configure(text="New wallet")
             self._fill_tree(self.outputs_tree, [])
             return
         addr = wallet["address"]
         self.address_var.set(addr)
-        self.payout_var.set(addr)
+        self.pubkey_var.set(wallet.get("pubkey") or "")
+        self.new_wallet_btn.configure(text="Replace wallet")
+        if not self.payout_var.get().strip():
+            self.payout_var.set(addr)
         if view is None:
             self.balance_var.set("0.00000000 CRUX")
             self.mature_var.set("no unspent outputs on this chain")
@@ -653,11 +791,35 @@ class App:
     def open_explorer(self):
         webbrowser.open(EXPLORER_URL)
 
+    def _open_dir(self, path: str):
+        os.makedirs(path, exist_ok=True)
+        if sys.platform == "win32":
+            os.startfile(path)  # noqa: S606
+        elif sys.platform == "darwin":
+            os.system(f'open "{path}"')  # noqa: S605
+        else:
+            os.system(f'xdg-open "{path}"')  # noqa: S605
+
+    def open_data_dir(self):
+        home = os.path.dirname(os.path.abspath(self.settings_path)) or os.getcwd()
+        self._open_dir(home)
+        self.status_var.set(f"opened {home}")
+
+    def open_inbox_dir(self):
+        self._open_dir(self.inbox_dir)
+        self.status_var.set(f"opened {self.inbox_dir}")
+
     def copy_address(self):
         addr = self.address_var.get()
         if addr.startswith("crux1"):
             self._clip(addr)
             self.status_var.set("address copied")
+
+    def copy_pubkey(self):
+        pub = self.pubkey_var.get().strip()
+        if pub:
+            self._clip(pub)
+            self.status_var.set("pubkey copied")
 
     def _clip(self, text: str):
         self.root.clipboard_clear()
@@ -681,7 +843,30 @@ class App:
             self.dialogs.showerror("Wallet", str(exc))
             return
         self.status_var.set(f"wallet written · {data['address']}")
+        self.payout_var.set(data["address"])
+        self.pubkey_var.set(data.get("pubkey") or "")
         self.refresh()
+
+    def do_load_wallet(self):
+        path = filedialog.askopenfilename(
+            title="Load CRUX wallet",
+            filetypes=[("JSON", "*.json"), ("All files", "*.*")],
+            initialdir=os.path.dirname(os.path.abspath(self.wallet_path)) or os.getcwd(),
+        )
+        if not path:
+            return
+        try:
+            data = load_wallet(path)
+        except DesktopError as exc:
+            self.dialogs.showerror("Wallet", str(exc))
+            return
+        self.wallet_path = path
+        self.wallet_path_var.set(path)
+        self.payout_var.set(data["address"])
+        self.pubkey_var.set(data.get("pubkey") or "")
+        self.status_var.set(f"loaded {data['address']}")
+        self.refresh()
+        self._persist()
 
     def do_send(self):
         try:
@@ -838,6 +1023,7 @@ class App:
         source = self.source_var.get()
         repo = self.repo_var.get().strip() or DEFAULT_REPO
         submit = bool(self.submit_var.get())
+        keep = bool(self.keep_mining_var.get())
         self.stop_event.clear()
         self.mining = True
         self.start_btn.configure(state="disabled")
@@ -847,7 +1033,7 @@ class App:
         self._log(self.mine_log, f"starting · handle @{handle.strip().lstrip('@')} · {address}")
         thread = threading.Thread(
             target=self._mine_worker,
-            args=(handle, address, message, source, repo, submit),
+            args=(handle, address, message, source, repo, submit, keep),
             daemon=True,
         )
         thread.start()
@@ -856,7 +1042,7 @@ class App:
         self.stop_event.set()
         self.mine_status.set("stopping…")
 
-    def _mine_worker(self, handle, address, message, source, repo, submit):
+    def _mine_worker(self, handle, address, message, source, repo, submit, keep):
         # Runs off the Tk thread. Do not touch widgets or StringVars here.
         try:
             if source == "remote":
@@ -867,28 +1053,48 @@ class App:
             if not blocks:
                 self.queue.put(("error", "no chain to extend — load local genesis or switch to remote"))
                 return
-            result = mine_block(
-                blocks,
-                handle,
-                address,
-                message=message,
-                mempool=mempool,
-                stop=self.stop_event.is_set,
-                on_progress=lambda p: self.queue.put(("progress", p)),
-                quiet=True,
-                inbox_dir=self.inbox_dir,
-            )
-            if result is None:
-                self.queue.put(("stopped", None))
-                return
-            if submit:
-                try:
-                    ok = submit_block(repo, result["block"], result["line"])
-                    result["submitted"] = ok
-                except DesktopError as exc:
-                    result["submitted"] = False
-                    result["submit_error"] = str(exc)
-            self.queue.put(("found", result))
+            while True:
+                result = mine_block(
+                    blocks,
+                    handle,
+                    address,
+                    message=message,
+                    mempool=mempool,
+                    stop=self.stop_event.is_set,
+                    on_progress=lambda p: self.queue.put(("progress", p)),
+                    quiet=True,
+                    inbox_dir=self.inbox_dir,
+                )
+                if result is None:
+                    self.queue.put(("stopped", None))
+                    return
+                if submit:
+                    try:
+                        ok = submit_block(repo, result["block"], result["line"])
+                        result["submitted"] = ok
+                    except DesktopError as exc:
+                        result["submitted"] = False
+                        result["submit_error"] = str(exc)
+                more = bool(keep) and not self.stop_event.is_set()
+                result["continue"] = more
+                self.queue.put(("found", result))
+                if not more:
+                    return
+                if source == "remote":
+                    try:
+                        blocks, mempool, _reg = fetch_remote(repo)
+                    except (DesktopError, SystemExit) as exc:
+                        self.queue.put(("error", str(exc)))
+                        return
+                else:
+                    try:
+                        from crux.chain import append_block
+                        append_block(result["block"], path=self.blocks_path)
+                    except OSError:
+                        pass
+                    blocks = list(blocks) + [result["block"]]
+                    mined_ids = {t.txid() for t in result["block"].txs}
+                    mempool = [t for t in mempool if t.txid() not in mined_ids]
         except (DesktopError, SystemExit) as exc:
             self.queue.put(("error", str(exc)))
         except Exception as exc:  # noqa: BLE001
@@ -907,7 +1113,7 @@ class App:
             return
         if self._pumping:
             try:
-                self.root.after(200, self._pump)
+                self._pump_after = self.root.after(200, self._pump)
             except tk.TclError:
                 return
 
@@ -923,11 +1129,7 @@ class App:
                           f"{p['solved']} solved  {p['elapsed']:.0f}s")
             return
         if kind == "found":
-            self.mining = False
-            self.start_btn.configure(state="normal")
-            self.stop_btn.configure(state="disabled")
             self.last_result = payload
-            self.mine_status.set(f"found height {payload['height']}")
             self._log(self.mine_log, f"found  {payload['hash']}")
             self._log(self.mine_log, f"wrote  {payload['path']}")
             if payload.get("submitted"):
@@ -935,6 +1137,14 @@ class App:
             elif payload.get("submit_error"):
                 self._log(self.mine_log, payload["submit_error"])
             self._set_text(self.mine_result, payload["line"])
+            if payload.get("continue"):
+                self.mine_status.set(f"found height {payload['height']}; mining next…")
+                self.status_var.set(f"mined block {payload['height']}; continuing")
+                return
+            self.mining = False
+            self.start_btn.configure(state="normal")
+            self.stop_btn.configure(state="disabled")
+            self.mine_status.set(f"found height {payload['height']}")
             self.status_var.set(f"mined block {payload['height']}")
             return
         if kind == "stopped":
@@ -952,10 +1162,25 @@ class App:
             self._log(self.mine_log, str(payload))
             self.status_var.set(str(payload))
 
-    def _on_close(self):
+    def shutdown(self):
+        self._ready = False
         self._pumping = False
+        for attr in ("_save_after", "_pump_after"):
+            job = getattr(self, attr, None)
+            if job is not None:
+                try:
+                    self.root.after_cancel(job)
+                except tk.TclError:
+                    pass
+                setattr(self, attr, None)
         self.stop_event.set()
-        self._persist()
+
+    def _on_close(self):
+        self.shutdown()
+        try:
+            self._persist()
+        except tk.TclError:
+            pass
         self.root.destroy()
 
 
@@ -976,8 +1201,10 @@ def main(argv=None) -> int:
 
     paths = default_runtime_paths()
     os.makedirs(paths["inbox_dir"], exist_ok=True)
-    wallet = args.wallet or paths["wallet_path"]
     settings = args.settings or paths["settings_path"]
+    saved = load_settings(settings)
+    preferred = args.wallet or saved.get("wallet_path") or paths["wallet_path"]
+    wallet = resolve_wallet_path(preferred)
     inbox = args.inbox or paths["inbox_dir"]
 
     try:
