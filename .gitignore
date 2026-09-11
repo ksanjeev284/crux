@@ -8,5 +8,9 @@ venv/
 *.egg-info/
 dist/
 build/
+crux/cuda/*.dll
+crux/cuda/*.so
+crux/cuda/*.ptx
+crux/cuda/*.cubin
 inbox/*
 !inbox/README.md

@@ -231,7 +231,7 @@ def run_headless():
         keys = default_settings()
         for name in (
             "handle", "id_handle", "repo", "message", "submit", "keep_mining",
-            "source", "fee", "to", "amount", "memo", "payout", "last_tab",
+            "cuda", "source", "fee", "to", "amount", "memo", "payout", "last_tab",
             "geometry", "last_line", "last_title", "wallet_path",
         ):
             assert name in keys, name
@@ -573,7 +573,7 @@ def run_widgets():
         for name in (
             "to_var", "amount_var", "fee_var", "memo_var", "handle_var",
             "id_handle_var", "message_var", "payout_var", "repo_var",
-            "source_var", "submit_var", "keep_mining_var", "pubkey_var",
+            "source_var", "submit_var", "keep_mining_var", "cuda_var", "pubkey_var",
             "wallet_path_var", "search_var", "start_btn", "stop_btn",
             "send_btn", "id_btn", "verify_btn", "new_wallet_btn",
         ):

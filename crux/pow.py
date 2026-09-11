@@ -139,9 +139,10 @@ def _half_sums(numbers):
     return sums
 
 
-def solve_instance(numbers, target: int):
-    """Meet in the middle. Returns a subset mask, or None if there is none."""
-    half = N // 2
+def solve_instance_cpu(numbers, target: int):
+    """Meet in the middle on CPU. Returns a subset mask, or None if there is none."""
+    n = len(numbers)
+    half = n // 2
     table = {}
     for mask, s in enumerate(_half_sums(numbers[:half])):
         if s <= target and s not in table:
@@ -156,6 +157,59 @@ def solve_instance(numbers, target: int):
         if full:
             return full
     return None
+
+
+# None = auto (use CUDA when a device is present). Tests and --cpu set False.
+_USE_CUDA = None
+
+
+def set_cuda(enabled):
+    """True/False to force a backend; None to auto-detect."""
+    global _USE_CUDA
+    _USE_CUDA = enabled
+
+
+def cuda_wanted() -> bool:
+    if _USE_CUDA is False:
+        return False
+    if _USE_CUDA is True:
+        return True
+    try:
+        from . import pow_cuda
+        return pow_cuda.available()
+    except Exception:
+        return False
+
+
+def cuda_info() -> str:
+    try:
+        from . import pow_cuda
+        if pow_cuda.available():
+            name = pow_cuda.device_name() or pow_cuda.backend()
+            return f"cuda:{name}"
+    except Exception:
+        pass
+    return "cpu"
+
+
+def solve_instance(numbers, target: int, use_cuda=None):
+    """
+    Meet in the middle. Uses CUDA when a GPU is available unless `use_cuda`
+    is False. Consensus does not care which backend found the mask.
+
+    Auto mode only sends production-sized puzzles (n >= 32) to the GPU so
+    the tiny n=16 test instances stay on the instant CPU path.
+    """
+    want = cuda_wanted() if use_cuda is None else bool(use_cuda)
+    n = len(numbers)
+    if want and (use_cuda is True or n >= 32):
+        try:
+            from . import pow_cuda
+            if pow_cuda.available():
+                return pow_cuda.solve_instance(numbers, target)
+        except Exception:
+            pass
+    return solve_instance_cpu(numbers, target)
 
 
 def solve_header(header_core_fn, start_nonce: int = 0, max_nonce: int = MAX_NONCE):

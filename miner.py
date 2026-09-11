@@ -14,6 +14,8 @@ file). Do not comment on an old thread.
 
     python3 miner.py --submit          # open the issue with `gh` after each block
     python3 miner.py --once            # one block and exit
+    python3 miner.py --cuda            # solve knapsacks on an NVIDIA GPU
+    python3 miner.py --cpu             # force the Python solver
     python3 miner.py --help
 """
 
@@ -215,7 +217,7 @@ def submit_issue(repo: str, block: Block, line: str) -> bool:
 
 
 def mine_one(blocks, miner, address, message, mempool, now=None,
-             stop=None, on_progress=None, quiet=False):
+             stop=None, on_progress=None, quiet=False, use_cuda=None):
     """
     Mine one block extending `blocks`.
 
@@ -255,8 +257,14 @@ def mine_one(blocks, miner, address, message, mempool, now=None,
         txs=all_txs,
     )
 
+    solver = powfn.cuda_info() if (use_cuda is not False) else "cpu"
+    if use_cuda is False:
+        powfn.set_cuda(False)
+    elif use_cuda is True:
+        powfn.set_cuda(True)
+        solver = powfn.cuda_info()
     say(f"mining height {height}  difficulty {difficulty(bits):,.1f}  "
-        f"bits {bits:#010x}  work {target_to_work(target):,}")
+        f"bits {bits:#010x}  work {target_to_work(target):,}  {solver}")
     say(f"  tip     {state.tip_hash[:20]}…" if height else "  genesis")
     say(f"  reward  {format_amount(block_subsidy(height) + fee)} CRUX"
         f"{f' (fees {format_amount(fee)})' if fee else ''}"
@@ -285,7 +293,7 @@ def mine_one(blocks, miner, address, message, mempool, now=None,
         block.nonce = nonce
         core = block.header_core()
         numbers, tgt = powfn.instance(core)
-        subset = powfn.solve_instance(numbers, tgt)
+        subset = powfn.solve_instance(numbers, tgt, use_cuda=use_cuda)
         attempts += 1
         if subset is not None:
             solved += 1
@@ -360,7 +368,19 @@ def main() -> int:
                     help="open a new GitHub issue with `gh` after each block")
     ap.add_argument("--local", action="store_true",
                     help="mine against the local chain/blocks.jsonl only")
+    accel = ap.add_mutually_exclusive_group()
+    accel.add_argument("--cuda", action="store_true",
+                       help="solve knapsacks on the GPU (Numba CUDA or nvcc)")
+    accel.add_argument("--cpu", action="store_true",
+                       help="force the Python meet-in-the-middle solver")
     args = ap.parse_args()
+
+    if args.cpu:
+        powfn.set_cuda(False)
+    elif args.cuda:
+        powfn.set_cuda(True)
+        if "cpu" == powfn.cuda_info():
+            raise SystemExit("CUDA was requested but no GPU solver is available")
 
     check_miner_name(args.miner)
     check_message(args.message, is_genesis=False)

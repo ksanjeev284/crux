@@ -223,6 +223,7 @@ class App:
         self.source_var = tk.StringVar(value=self.settings.get("source", "local"))
         self.submit_var = tk.BooleanVar(value=bool(self.settings.get("submit")))
         self.keep_mining_var = tk.BooleanVar(value=bool(self.settings.get("keep_mining")))
+        self.cuda_var = tk.BooleanVar(value=bool(self.settings.get("cuda", True)))
         self.to_var = tk.StringVar(value=self.settings.get("to", ""))
         self.amount_var = tk.StringVar(value=self.settings.get("amount", ""))
         self.fee_var = tk.StringVar(value=self.settings.get("fee", DEFAULT_FEE))
@@ -475,6 +476,16 @@ class App:
                        variable=self.keep_mining_var, bg=BG, fg=INK, selectcolor=PANEL2,
                        activebackground=BG, activeforeground=INK, font=self.fn_sm,
                        highlightthickness=0).pack(side="left", padx=(16, 0))
+        cuda_row = tk.Frame(tab, bg=BG)
+        cuda_row.pack(fill="x", pady=2)
+        tk.Checkbutton(cuda_row, text="CUDA knapsack solver",
+                       variable=self.cuda_var, bg=BG, fg=INK, selectcolor=PANEL2,
+                       activebackground=BG, activeforeground=INK, font=self.fn_sm,
+                       highlightthickness=0).pack(side="left")
+        from crux.pow import cuda_info
+        self.cuda_label = tk.StringVar(value=cuda_info())
+        tk.Label(cuda_row, textvariable=self.cuda_label, bg=BG, fg=TEAL,
+                 font=self.fn_sm).pack(side="left", padx=10)
 
         btns = tk.Frame(tab, bg=BG)
         btns.pack(fill="x", pady=(8, 6))
@@ -546,6 +557,7 @@ class App:
         self.settings["message"] = self.message_var.get()
         self.settings["submit"] = bool(self.submit_var.get())
         self.settings["keep_mining"] = bool(self.keep_mining_var.get())
+        self.settings["cuda"] = bool(self.cuda_var.get())
         self.settings["source"] = self.source_var.get()
         self.settings["fee"] = self.fee_var.get().strip() or DEFAULT_FEE
         self.settings["to"] = self.to_var.get().strip()
@@ -591,7 +603,7 @@ class App:
             self.memo_var, self.payout_var,
         ):
             var.trace_add("write", self._schedule_save)
-        for var in (self.submit_var, self.keep_mining_var):
+        for var in (self.submit_var, self.keep_mining_var, self.cuda_var):
             var.trace_add("write", self._schedule_save)
         self.notebook.bind("<<NotebookTabChanged>>", lambda _e: self._schedule_save())
 
@@ -927,13 +939,12 @@ class App:
         s = self.snap
         if q.isdigit():
             h = int(q)
+            self._show_block(h)
             for item in self.blocks_tree.get_children():
                 if str(self.blocks_tree.item(item, "values")[0]) == str(h):
                     self.blocks_tree.selection_set(item)
                     self.blocks_tree.see(item)
-                    self._show_block(h)
-                    return
-            self._set_text(self.detail, f"No block at height {h}.")
+                    break
             return
         if q.lower().startswith("crux1"):
             for item in self.balances_tree.get_children():
@@ -1024,16 +1035,20 @@ class App:
         repo = self.repo_var.get().strip() or DEFAULT_REPO
         submit = bool(self.submit_var.get())
         keep = bool(self.keep_mining_var.get())
+        use_cuda = bool(self.cuda_var.get())
         self.stop_event.clear()
         self.mining = True
         self.start_btn.configure(state="disabled")
         self.stop_btn.configure(state="normal")
         self.mine_status.set("mining…")
         self._set_text(self.mine_log, "")
-        self._log(self.mine_log, f"starting · handle @{handle.strip().lstrip('@')} · {address}")
+        from crux.pow import cuda_info, set_cuda
+        set_cuda(True if use_cuda else False)
+        self.cuda_label.set(cuda_info() if use_cuda else "cpu")
+        self._log(self.mine_log, f"starting · handle @{handle.strip().lstrip('@')} · {address} · {self.cuda_label.get()}")
         thread = threading.Thread(
             target=self._mine_worker,
-            args=(handle, address, message, source, repo, submit, keep),
+            args=(handle, address, message, source, repo, submit, keep, use_cuda),
             daemon=True,
         )
         thread.start()
@@ -1042,7 +1057,7 @@ class App:
         self.stop_event.set()
         self.mine_status.set("stopping…")
 
-    def _mine_worker(self, handle, address, message, source, repo, submit, keep):
+    def _mine_worker(self, handle, address, message, source, repo, submit, keep, use_cuda=None):
         # Runs off the Tk thread. Do not touch widgets or StringVars here.
         try:
             if source == "remote":
@@ -1064,6 +1079,7 @@ class App:
                     on_progress=lambda p: self.queue.put(("progress", p)),
                     quiet=True,
                     inbox_dir=self.inbox_dir,
+                    use_cuda=use_cuda,
                 )
                 if result is None:
                     self.queue.put(("stopped", None))

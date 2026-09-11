@@ -163,6 +163,7 @@ def default_settings() -> dict:
         "message": "gm",
         "submit": False,
         "keep_mining": False,
+        "cuda": True,
         # A downloaded binary has no git checkout of chain/, so follow the
         # published repo until the user switches to a local copy.
         "source": "remote" if frozen() else "local",
@@ -641,6 +642,7 @@ def mine_block(
     quiet: bool = True,
     inbox_dir: str = "inbox",
     write: bool = True,
+    use_cuda=None,
 ):
     """
     Mine one block. Returns a dict with the block and submission line, or
@@ -662,6 +664,7 @@ def mine_block(
         stop=stop,
         on_progress=on_progress,
         quiet=quiet,
+        use_cuda=use_cuda,
     )
     if block is None:
         return None

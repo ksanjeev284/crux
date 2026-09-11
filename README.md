@@ -180,7 +180,14 @@ No dependencies. Python 3.9 or newer, standard library only.
 git clone https://github.com/ksanjeev284/crux.git && cd crux
 python3 wallet.py new
 python3 miner.py --miner YOUR_GITHUB_HANDLE --message "gm"
+python3 miner.py --cuda --miner YOUR_GITHUB_HANDLE --message "gm"   # GPU, optional
 ```
+
+Mining is the only place CUDA appears. The knapsack is still n=44 and the
+proof is still 8 bytes; the GPU just searches faster. `--cpu` forces the
+reference Python solver. `CRUX_CUDA=0` does the same. No extra package is
+required for consensus or `verify.py`. A GPU solver is used when Numba
+CUDA or an `nvcc`-built `crux/cuda/knapsack.cu` library is available.
 
 It solves knapsacks until the header hashes below the current target, then
 prints a line starting with `crux-block-v1:` and writes `inbox/block-….txt`.
@@ -307,6 +314,7 @@ wallet.py            keys, balances, signed transactions
 gui.py               desktop GUI — same operations, buttons instead of flags
 CRUX.bat             Windows launcher for gui.py
 CRUX.spec            PyInstaller spec; GitHub Actions ships builds on every tag
+crux/cuda/           optional knapsack.cu for an nvcc-built GPU solver
 verify.py            independent full-chain verification
 submit.py            what the workflow runs
 SPEC.md              the consensus rules

@@ -124,6 +124,7 @@ python3 tests/test_gui.py
 
 ```bash
 python3 miner.py --miner YOUR_HANDLE --message "block one" --repo YOUR_USER/crux --submit
+python3 miner.py --cuda --miner YOUR_HANDLE --message "block one" --repo YOUR_USER/crux --submit
 ```
 
 Watch the README update itself.
