@@ -18,31 +18,33 @@
 
 <!-- CRUX:BEGIN -->
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="assets/ledger-dark.svg?v=0"><img src="assets/ledger-light.svg?v=0" width="100%" alt="CRUX ledger, height 0"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="assets/ledger-dark.svg?v=1"><img src="assets/ledger-light.svg?v=1" width="100%" alt="CRUX ledger, height 1"></picture>
 
 | | |
 |---|---|
-| **height** | `0` |
-| **tip** | `00f61a0837cc316dbeb94d09c2e0cac9cea3b50d0d5dad829c8ce3817c98b7d4` |
+| **height** | `1` |
+| **tip** | `026be5dc950fcf48d5f3650f921b1eb4e78ed9c9576234a118301f8473c09915` |
 | **difficulty** | `64.0`  (bits `0x20040000`) |
-| **chainwork** | `63` expected hashes |
-| **supply** | `50.00000000 CRUX` in `1` unspent outputs |
+| **chainwork** | `126` expected hashes |
+| **supply** | `100.00000000 CRUX` in `2` unspent outputs |
 | **next reward** | `50.00000000 CRUX` |
-| **next retarget** | in `15` block(s) |
-| **next halving** | in `209999` block(s) |
-| **transactions** | `1` |
+| **next retarget** | in `14` block(s) |
+| **next halving** | in `209998` block(s) |
+| **transactions** | `2` |
 
 ### Recent blocks
 
 | # | hash | miner | message | txs | reward | mined |
 |--:|---|---|---|--:|--:|---|
+| `1` | `026be5dc950fcf48d5f3…` | [@americanvain](https://github.com/americanvain) | `gm` | `1` | `50.00000000` | 2026-09-11 04:16 UTC |
 | `0` | `00f61a0837cc316dbeb9…` | [@ksanjeev284](https://github.com/ksanjeev284) | `difficulty is a target, not a pile of puzzles. the proof stays eight bytes no matter how hard the work gets.` | `1` | `50.00000000` | 2026-09-09 14:46 UTC |
 
 ### Miners
 
 | miner | blocks | share |
 |---|--:|--:|
-| [@ksanjeev284](https://github.com/ksanjeev284) | `1` | `100.0%` |
+| [@americanvain](https://github.com/americanvain) | `1` | `50.0%` |
+| [@ksanjeev284](https://github.com/ksanjeev284) | `1` | `50.0%` |
 
 ### Balances
 
@@ -51,8 +53,9 @@ _Find your own name here once you have run `python3 wallet.py identity`._
 | holder | address | balance |
 |---|---|--:|
 | [@ksanjeev284](https://github.com/ksanjeev284) | `crux1qvwj29crmyt86amr7z8r6hqsd8sq3fr7dtnre5m` | `50.00000000 CRUX` |
+| [@americanvain](https://github.com/americanvain) | `crux1qfhk8zkgy4axu0skh40kaxyctljm6s9qpqdkxwh` | `50.00000000 CRUX` |
 
-<sub>Rendered from `chain/blocks.jsonl` at height 0. Verify it yourself: <code>python3 verify.py</code></sub>
+<sub>Rendered from `chain/blocks.jsonl` at height 1. Verify it yourself: <code>python3 verify.py</code></sub>
 
 <!-- CRUX:END -->
 
